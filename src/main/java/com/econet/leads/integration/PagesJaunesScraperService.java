@@ -1,0 +1,233 @@
+package com.econet.leads.integration;
+
+import com.econet.leads.model.Business;
+import com.econet.leads.model.DataSource;
+import com.econet.leads.model.ScraperJob;
+import com.econet.leads.repository.DataSourceRepository;
+import com.econet.leads.repository.ScraperJobRepository;
+import com.econet.leads.service.BusinessService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Service for scraping business data from Pages Jaunes (Yellow Pages)
+ * IMPORTANT: This is a MOCK implementation for demonstration purposes
+ * Real implementation requires:
+ * - Selenium WebDriver for JavaScript rendering
+ * - Rate limiting (3000ms between requests)
+ * - Proper User-Agent and headers
+ * - Respect for robots.txt
+ * - Commercial agreement with Pages Jaunes for data usage
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class PagesJaunesScraperService {
+
+    private static final String DATA_SOURCE_NAME = "Pages Jaunes - Manual Scraping";
+    private static final int RATE_LIMIT_MS = 3000; // 3 seconds between requests
+
+    private final BusinessService businessService;
+    private final DataSourceRepository dataSourceRepository;
+    private final ScraperJobRepository scraperJobRepository;
+
+    /**
+     * Scrape business data from Pages Jaunes
+     * Note: This is a MOCK implementation with sample data
+     */
+    public ScraperJob scrapeBusinesses() {
+        log.info("Starting Pages Jaunes scraping...");
+
+        DataSource dataSource = getOrCreateDataSource();
+        ScraperJob job = createJob(dataSource);
+
+        try {
+            // Mock scraping - real implementation would use Selenium/WebDriver
+            List<Map<String, Object>> scrapedData = performMockScraping();
+
+            log.info("Processing {} scraped records...", scrapedData.size());
+
+            int processed = 0;
+            int added = 0;
+            int updated = 0;
+            StringBuilder errors = new StringBuilder();
+
+            for (Map<String, Object> record : scrapedData) {
+                try {
+                    Business business = mapScrapedDataToBusiness(record);
+                    Business result = businessService.findOrCreate(business);
+
+                    if (result.getCreatedAt().isAfter(LocalDateTime.now().minusSeconds(5))) {
+                        added++;
+                    } else {
+                        updated++;
+                    }
+
+                    processed++;
+
+                    if (processed % 10 == 0) {
+                        log.info("Processed {}/{} records", processed, scrapedData.size());
+                    }
+
+                    // Simulate rate limiting
+                    Thread.sleep(100); // Mock delay
+
+                } catch (Exception e) {
+                    log.error("Error processing Pages Jaunes record: {}", e.getMessage());
+                    errors.append(String.format("Record %d: %s\n", processed, e.getMessage()));
+                }
+            }
+
+            job = updateJobSuccess(job, processed, added, updated, errors.toString());
+            updateDataSource(dataSource, processed);
+
+            log.info("Pages Jaunes scraping completed: {} processed, {} added, {} updated",
+                    processed, added, updated);
+
+        } catch (Exception e) {
+            log.error("Pages Jaunes scraping failed: {}", e.getMessage(), e);
+            job = updateJobFailure(job, e.getMessage());
+        }
+
+        return job;
+    }
+
+    /**
+     * Mock scraping function - replace with actual Selenium WebDriver implementation
+     */
+    private List<Map<String, Object>> performMockScraping() {
+        List<Map<String, Object>> scrapedData = new ArrayList<>();
+
+        // Sample businesses across different categories
+        Object[][] sampleBusinesses = {
+            // Restaurants
+            {"Restaurant Le Gourmet", "Restaurant", "2345 Rue Saint-Laurent", "Montréal", "H2X 2T1", "514-555-2001"},
+            {"Café Bistro Central", "Restaurant", "6789 Avenue du Parc", "Montréal", "H2V 4E7", "514-555-2002"},
+            {"Restaurant La Belle Province", "Restaurant", "4567 Boulevard René-Lévesque", "Québec", "G1R 2B5", "418-555-2003"},
+
+            // CPE / Garderies
+            {"Garderie Les Petits Loups", "CPE", "8901 Rue de la Montagne", "Laval", "H7N 5B3", "450-555-3001"},
+            {"CPE Les Bambins Joyeux", "CPE", "1234 Avenue des Érables", "Longueuil", "J4H 3W2", "450-555-3002"},
+
+            // CHSLD
+            {"Résidence du Parc", "CHSLD", "5678 Chemin de la Côte-des-Neiges", "Montréal", "H3V 1A2", "514-555-4001"},
+            {"CHSLD Saint-Joseph", "CHSLD", "9012 Rue Notre-Dame", "Québec", "G1K 8A4", "418-555-4002"},
+
+            // Cliniques
+            {"Clinique Médicale Familiale", "Clinique", "3456 Rue Sherbrooke", "Sherbrooke", "J1H 5K4", "819-555-5001"},
+            {"Centre Médical du Vieux-Port", "Clinique", "7890 Rue de la Commune", "Montréal", "H2Y 1J1", "514-555-5002"},
+            {"Clinique Sans Rendez-vous", "Clinique", "2345 Boulevard Taschereau", "Brossard", "J4W 1M9", "450-555-5003"}
+        };
+
+        for (int i = 0; i < sampleBusinesses.length; i++) {
+            Object[] data = sampleBusinesses[i];
+            Map<String, Object> record = new HashMap<>();
+            record.put("business_name", data[0]);
+            record.put("business_type", data[1]);
+            record.put("address", data[2]);
+            record.put("city", data[3]);
+            record.put("postal_code", data[4]);
+            record.put("phone", data[5]);
+            record.put("_id", "pj_" + (i + 1));
+            scrapedData.add(record);
+        }
+
+        log.info("Mock scraping generated {} sample records", scrapedData.size());
+        return scrapedData;
+    }
+
+    @Transactional
+    private DataSource getOrCreateDataSource() {
+        return dataSourceRepository
+                .findBySourceName(DATA_SOURCE_NAME)
+                .orElseGet(() -> {
+                    DataSource ds = new DataSource();
+                    ds.setSourceName(DATA_SOURCE_NAME);
+                    ds.setSourceType(DataSource.SourceType.WEB_SCRAPER);
+                    ds.setSourceUrl("https://www.pagesjaunes.ca");
+                    ds.setSyncFrequency(DataSource.SyncFrequency.MANUAL);
+                    ds.setActive(true);
+                    return dataSourceRepository.save(ds);
+                });
+    }
+
+    @Transactional
+    private ScraperJob createJob(DataSource dataSource) {
+        ScraperJob job = new ScraperJob();
+        job.setSource(dataSource);
+        job.setJobType(ScraperJob.JobType.FULL_SYNC);
+        job.setStatus(ScraperJob.JobStatus.RUNNING);
+        job.setStartedAt(LocalDateTime.now());
+        return scraperJobRepository.save(job);
+    }
+
+    @Transactional
+    private ScraperJob updateJobSuccess(ScraperJob job, int processed, int added, int updated, String errors) {
+        job.setStatus(ScraperJob.JobStatus.COMPLETED);
+        job.setCompletedAt(LocalDateTime.now());
+        job.setRecordsProcessed(processed);
+        job.setRecordsAdded(added);
+        job.setRecordsUpdated(updated);
+        job.setErrors(errors);
+        return scraperJobRepository.save(job);
+    }
+
+    @Transactional
+    private ScraperJob updateJobFailure(ScraperJob job, String error) {
+        job.setStatus(ScraperJob.JobStatus.FAILED);
+        job.setCompletedAt(LocalDateTime.now());
+        job.setErrors(error);
+        return scraperJobRepository.save(job);
+    }
+
+    @Transactional
+    private void updateDataSource(DataSource dataSource, int recordsCount) {
+        dataSource.setLastSync(LocalDateTime.now());
+        dataSource.setRecordsCount(recordsCount);
+        dataSourceRepository.save(dataSource);
+    }
+
+    /**
+     * Map scraped data to Business entity
+     */
+    private Business mapScrapedDataToBusiness(Map<String, Object> record) {
+        Business business = new Business();
+
+        // Name
+        business.setBusinessName(getString(record, "business_name"));
+        business.setBusinessType(getString(record, "business_type"));
+
+        // Address
+        business.setAddressStreet(getString(record, "address"));
+        business.setAddressCity(getString(record, "city"));
+        business.setAddressProvince("QC");
+        business.setPostalCode(getString(record, "postal_code"));
+
+        // Contact
+        business.setPhone(getString(record, "phone"));
+        business.setWebsite(getString(record, "website"));
+        business.setEmail(getString(record, "email"));
+
+        // Metadata
+        business.setDataSource(DATA_SOURCE_NAME);
+        business.setSourceUrl("https://www.pagesjaunes.ca");
+        business.setExternalId(getString(record, "_id"));
+
+        return business;
+    }
+
+    private String getString(Map<String, Object> record, String key) {
+        Object value = record.get(key);
+        if (value == null) return null;
+        String str = value.toString().trim();
+        return str.isEmpty() ? null : str;
+    }
+}

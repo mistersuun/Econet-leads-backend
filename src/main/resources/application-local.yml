@@ -1,0 +1,37 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/econet_leads_dev
+    username: postgres
+    password: ${DB_PASSWORD:postgres}
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  flyway:
+    # Disable validation in development to allow migration file changes
+    # Run 'mvn flyway:repair' manually after modifying migration files
+    validate-on-migrate: false
+
+server:
+  port: 8081
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-key-change-in-production-min-256-bits-for-hs256-algorithm}
+    refresh-secret: ${JWT_REFRESH_SECRET:dev-refresh-secret-key-change-in-production-min-256-bits-for-hs256-algorithm}
+  scraper:
+    headless: false  # Show browser for debugging
+
+logging:
+  level:
+    com.econet.leads: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG

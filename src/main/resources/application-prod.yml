@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+app:
+  scraper:
+    headless: true
+    rate-limit-ms: 3000  # Be more conservative in production
+
+logging:
+  level:
+    com.econet.leads: INFO
+    org.springframework.web: WARN
