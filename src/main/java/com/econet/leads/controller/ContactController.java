@@ -76,17 +76,9 @@ public class ContactController {
 
     @GetMapping("/business/{businessId}")
     @Transactional(readOnly = true)
-    @Operation(summary = "Get contacts for business", description = "Get contact history for a specific business. Users see only their own contacts, admins see all.")
+    @Operation(summary = "Get contacts for business", description = "Full contact history for a business, newest first. Shared across the team so whoever calls next sees earlier conversations.")
     public ResponseEntity<List<ContactDTO>> getContactsByBusiness(@PathVariable UUID businessId) {
-        User currentUser = authenticationFacade.getCurrentUser();
-
-        // Filter contacts by current user unless admin - filter instead of throwing to allow shared accounts
         List<ContactDTO> contacts = contactService.findByBusinessId(businessId).stream()
-                .filter(contact -> {
-                    // Admins can see all contacts, users can only see their own
-                    return currentUser.getRole() == User.UserRole.ADMIN ||
-                           contact.getUser().getId().equals(currentUser.getId());
-                })
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(contacts);

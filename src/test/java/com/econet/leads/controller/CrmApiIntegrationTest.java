@@ -1,5 +1,7 @@
 package com.econet.leads.controller;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+
 import com.econet.leads.model.Business;
 import com.econet.leads.model.LeadStatus;
 import com.econet.leads.model.User;
@@ -103,6 +105,21 @@ class CrmApiIntegrationTest {
                 .andExpect(jsonPath("$[0].businessName").value("Clinique Due"))
                 .andExpect(jsonPath("$[1].businessName").value("CPE Haute Qualité"))
                 .andExpect(jsonPath("$[2].businessName").value("CPE Basse Qualité"));
+    }
+
+    @Test
+    void teammatesSeeEachOthersCallHistory() throws Exception {
+        mvc.perform(post("/api/leads/{id}/calls", followUpDue.getId())
+                        .with(user("bob").roles("USER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"outcome\":\"CALLBACK\",\"notes\":\"Rappeler vendredi\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/contacts/business/{id}", followUpDue.getId()).with(user("alice").roles("USER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].username").value("bob"))
+                .andExpect(jsonPath("$[0].notes").value("Rappeler vendredi"));
     }
 
     @Test
