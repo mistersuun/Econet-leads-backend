@@ -14,6 +14,7 @@ import com.econet.leads.model.User;
 import com.econet.leads.repository.BusinessRepository;
 import com.econet.leads.repository.ContactRepository;
 import com.econet.leads.repository.UserRepository;
+import com.econet.leads.util.PhoneFormatter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -47,6 +48,7 @@ public class LeadService {
     private final BusinessRepository businessRepository;
     private final ContactRepository contactRepository;
     private final UserRepository userRepository;
+    private final DataQualityService dataQualityService;
     private final Clock clock;
 
     // ------------------------------------------------------------------ queue
@@ -163,6 +165,66 @@ public class LeadService {
         contactRepository.save(history);
 
         return DtoMapper.toDto(lead);
+    }
+
+    // ------------------------------------------------------------------ phone enrichment
+
+    /**
+     * Adds (or replaces) the phone of a lead, typically one imported without a number (permits,
+     * business register) so it can enter the call queue. Accepts 10 NANP digits with an optional
+     * leading +1 / 1; anything else is a 400. Recomputes the quality score and records a NOTE
+     * contact "Numéro ajouté" in the lead history.
+     */
+    @Transactional
+    public BusinessDTO updatePhone(UUID businessId, String rawPhone, UUID userId) {
+        String phone = trimToNull(rawPhone);
+        if (phone == null || !isValidNanpPhone(phone)) {
+            throw ApiException.badRequest("Numéro de téléphone invalide: 10 chiffres attendus (ex. 514 555-0123), +1 optionnel");
+        }
+        Business lead = businessRepository.findByIdForUpdate(businessId)
+                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> ApiException.notFound("User not found: " + userId));
+
+        String previous = lead.getPhone();
+        lead.setPhone(PhoneFormatter.format(phone));
+        lead.setPhoneNormalized(PhoneFormatter.normalize(phone));
+        lead.setDataQualityScore(dataQualityService.calculateQualityScore(lead));
+        lead = businessRepository.saveAndFlush(lead);
+
+        Contact history = new Contact();
+        history.setBusiness(lead);
+        history.setUser(user);
+        history.setContactType(Contact.ContactType.NOTE);
+        history.setContactDate(LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS));
+        history.setContactStatus("PHONE_ADDED");
+        history.setNotes(previous == null || previous.isBlank()
+                ? "Numéro ajouté: " + lead.getPhone()
+                : "Numéro ajouté: " + lead.getPhone() + " (remplace " + previous + ")");
+        contactRepository.save(history);
+
+        log.info("Phone set on lead {} by {}", lead.getId(), user.getUsername());
+        return DtoMapper.toDto(lead);
+    }
+
+    /**
+     * 10 digits (NANP: area code and exchange do not start with 0 or 1), optionally preceded by
+     * +1 / 1. Separators (spaces, dashes, dots, parentheses) are ignored; letters are rejected.
+     */
+    static boolean isValidNanpPhone(String phone) {
+        if (!phone.matches("[0-9+()\\-. ]+")) {
+            return false;
+        }
+        String digits = phone.replaceAll("[^0-9]", "");
+        if (phone.trim().startsWith("+") && !digits.startsWith("1")) {
+            return false;
+        }
+        if (digits.length() == 11 && digits.startsWith("1")) {
+            digits = digits.substring(1);
+        }
+        return digits.length() == 10
+                && digits.charAt(0) >= '2'
+                && digits.charAt(3) >= '2';
     }
 
     // ------------------------------------------------------------------ rules (pure functions)

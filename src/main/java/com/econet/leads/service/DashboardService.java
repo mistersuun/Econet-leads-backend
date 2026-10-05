@@ -100,7 +100,8 @@ public class DashboardService {
                        SUM(CASE WHEN created_at >= :from AND created_at < :to THEN 1 ELSE 0 END),
                        SUM(CASE WHEN next_follow_up_at >= :today AND next_follow_up_at < :tomorrow THEN 1 ELSE 0 END),
                        SUM(CASE WHEN next_follow_up_at < :today AND lead_status NOT IN %1$s THEN 1 ELSE 0 END),
-                       SUM(CASE WHEN lead_status IN ('INTERESTED', 'QUOTE_SENT') THEN estimated_value ELSE 0 END)
+                       SUM(CASE WHEN lead_status IN ('INTERESTED', 'QUOTE_SENT') THEN estimated_value ELSE 0 END),
+                       SUM(CASE WHEN (phone IS NULL OR phone = '') AND lead_status NOT IN %1$s THEN 1 ELSE 0 END)
                 FROM businesses
                 """.formatted(TERMINAL_SQL))
                 .setParameter("from", range.start())
@@ -146,7 +147,8 @@ public class DashboardService {
                 conversionRate,
                 toLong(leads[3]),
                 toLong(leads[4]),
-                toBigDecimal(leads[5]));
+                toBigDecimal(leads[5]),
+                toLong(leads[6]));
     }
 
     // ------------------------------------------------------------------ pipeline

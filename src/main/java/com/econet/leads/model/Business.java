@@ -7,10 +7,13 @@ import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -111,6 +114,14 @@ public class Business {
 
     @Column(name = "estimated_value", precision = 10, scale = 2)
     private BigDecimal estimatedValue;
+
+    /**
+     * Short source-specific facts shown to the caller (V8), e.g. {"NEQ": "...", "Secteur": "..."}.
+     * PostgreSQL JSONB does not keep key order; clients should not rely on it.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "source_details", columnDefinition = "jsonb")
+    private Map<String, String> sourceDetails;
 
     // Helper method to get full address
     public String getFullAddress() {

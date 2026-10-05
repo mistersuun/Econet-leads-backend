@@ -55,7 +55,7 @@ class LeadServiceTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(NOW.atZone(MONTREAL).toInstant(), MONTREAL);
-        service = new LeadService(businessRepository, contactRepository, userRepository, clock);
+        service = new LeadService(businessRepository, contactRepository, userRepository, new DataQualityService(), clock);
 
         caller = user("alice");
         otherUser = user("bob");

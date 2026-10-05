@@ -63,6 +63,8 @@ public class DataSource {
         CKAN_API,
         WEB_SCRAPER,
         CSV_DOWNLOAD,
+        /** Large downloadable archive (or admin upload), e.g. the Registre des entreprises ZIP. */
+        BULK_FILE,
         MANUAL
     }
 

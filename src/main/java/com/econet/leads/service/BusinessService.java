@@ -278,6 +278,19 @@ public class BusinessService {
             shouldUpdate = true;
         }
 
+        // Source facts (permit, register...) are merged so a lead matched by several sources keeps
+        // all of them; the newest value wins per key.
+        if (newData.getSourceDetails() != null && !newData.getSourceDetails().isEmpty()) {
+            java.util.Map<String, String> merged = existing.getSourceDetails() != null
+                    ? new java.util.LinkedHashMap<>(existing.getSourceDetails())
+                    : new java.util.LinkedHashMap<>();
+            merged.putAll(newData.getSourceDetails());
+            if (!merged.equals(existing.getSourceDetails())) {
+                existing.setSourceDetails(merged);
+                shouldUpdate = true;
+            }
+        }
+
         if (shouldUpdate) {
             normalizeBusinessData(existing);
             existing.setLastVerified(LocalDateTime.now());

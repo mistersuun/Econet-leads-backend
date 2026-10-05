@@ -26,7 +26,9 @@ public final class DashboardDTOs {
                           double conversionRate,
                           long followUpsDue,
                           long followUpsOverdue,
-                          BigDecimal pipelineValue) {
+                          BigDecimal pipelineValue,
+                          /** leads without a phone whose status is not WON/LOST/DO_NOT_CALL ("À enrichir") */
+                          long toEnrich) {
     }
 
     public record PipelineStage(LeadStatus status, long count) {

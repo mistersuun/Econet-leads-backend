@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Data
@@ -39,4 +40,7 @@ public class BusinessDTO {
     private LocalDateTime nextFollowUpAt;
     private Integer contactCount;
     private BigDecimal estimatedValue;
+
+    /** Source-specific facts for the caller (permit, register...), or null. */
+    private Map<String, String> sourceDetails;
 }

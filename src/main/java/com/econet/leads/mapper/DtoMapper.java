@@ -48,6 +48,8 @@ public final class DtoMapper {
         dto.setNextFollowUpAt(business.getNextFollowUpAt());
         dto.setContactCount(business.getContactCount() != null ? business.getContactCount() : 0);
         dto.setEstimatedValue(business.getEstimatedValue());
+        dto.setSourceDetails(business.getSourceDetails() == null || business.getSourceDetails().isEmpty()
+                ? null : new java.util.LinkedHashMap<>(business.getSourceDetails()));
         return dto;
     }
 

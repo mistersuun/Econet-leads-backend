@@ -6,6 +6,7 @@ import com.econet.leads.dto.BusinessFilterDTO;
 import com.econet.leads.dto.BusinessFilterOptionsDTO;
 import com.econet.leads.dto.BusinessUpdateRequest;
 import com.econet.leads.dto.LeadStatusUpdateRequest;
+import com.econet.leads.dto.PhoneUpdateRequest;
 import com.econet.leads.exception.ApiException;
 import com.econet.leads.mapper.DtoMapper;
 import com.econet.leads.model.User;
@@ -137,6 +138,14 @@ public class BusinessController {
                                                     @Valid @RequestBody LeadStatusUpdateRequest request) {
         User user = authenticationFacade.getCurrentUser();
         return ResponseEntity.ok(leadService.updateStatus(id, request, user.getId()));
+    }
+
+    @PatchMapping("/{id}/phone")
+    @Operation(summary = "Add a phone number", description = "Sets phone + normalized phone (10 digits NANP, optional +1; 400 otherwise), recomputes the quality score and records a 'Numéro ajouté' note. USER/ADMIN.")
+    public ResponseEntity<BusinessDTO> updatePhone(@PathVariable UUID id,
+                                                   @Valid @RequestBody PhoneUpdateRequest request) {
+        User user = authenticationFacade.getCurrentUser();
+        return ResponseEntity.ok(leadService.updatePhone(id, request.getPhone(), user.getId()));
     }
 
     @GetMapping("/search")
