@@ -26,6 +26,7 @@ app:
   admin:
     initial-password: test-admin-password
   scraper:
+    mock-pages-jaunes: true  # mock source with invented businesses; never enable in prod
     enabled: false
 
   scheduler:

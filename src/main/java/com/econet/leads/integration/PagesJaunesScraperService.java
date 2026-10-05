@@ -3,6 +3,7 @@ package com.econet.leads.integration;
 import com.econet.leads.model.Business;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -29,10 +30,17 @@ public class PagesJaunesScraperService {
     public static final String DATA_SOURCE_NAME = "Pages Jaunes - Manual Scraping";
     private static final int RATE_LIMIT_MS = 3000; // 3 seconds between requests
 
+    @Value("${app.scraper.mock-pages-jaunes:false}")
+    private boolean mockEnabled;
+
     /**
      * Scrape (mock) Pages Jaunes and map the results to Business candidates.
      */
     public List<Business> fetchBusinesses() {
+        if (!mockEnabled) {
+            throw new IllegalStateException(
+                    "Pages Jaunes is a mock source that returns invented businesses; it can only run with app.scraper.mock-pages-jaunes=true (local development).");
+        }
         return performMockScraping().stream()
                 .map(this::mapScrapedDataToBusiness)
                 .collect(Collectors.toList());

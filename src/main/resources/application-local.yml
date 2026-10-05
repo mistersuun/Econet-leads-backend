@@ -35,6 +35,7 @@ app:
     # Creates ~60 DEMO businesses with call history on startup (only in the local profile, only if none exist)
     demo-data: ${SEED_DEMO_DATA:true}
   scraper:
+    mock-pages-jaunes: true  # mock source with invented businesses; never enable in prod
     headless: false  # Show browser for debugging
 
 logging:
