@@ -111,8 +111,10 @@ public class DataSourceController {
                 jobs.add(ScraperJobDTO.fromEntity(importService.startImport(source)));
             } catch (Exception e) {
                 log.warn("Skipping import of {}: {}", source.getSourceName(), e.getMessage());
-                skipped.add(Map.of("sourceName", source.getSourceName(),
-                        "reason", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+                String reason = e instanceof org.springframework.web.server.ResponseStatusException rse && rse.getReason() != null
+                        ? rse.getReason()
+                        : (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+                skipped.add(Map.of("sourceName", source.getSourceName(), "reason", reason));
             }
         }
 

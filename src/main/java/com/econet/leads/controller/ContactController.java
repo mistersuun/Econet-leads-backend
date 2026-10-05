@@ -2,6 +2,7 @@ package com.econet.leads.controller;
 
 import com.econet.leads.dto.ContactCreateRequest;
 import com.econet.leads.dto.ContactDTO;
+import com.econet.leads.mapper.DtoMapper;
 import com.econet.leads.model.Contact;
 import com.econet.leads.model.User;
 import com.econet.leads.security.AuthenticationFacade;
@@ -184,7 +185,7 @@ public class ContactController {
 
         // Verify ownership before update - load with associations to avoid lazy loading issues
         Contact existing = contactService.findByIdWithAssociations(id)
-                .orElseThrow(() -> new RuntimeException("Contact not found with id: " + id));
+                .orElseThrow(() -> com.econet.leads.exception.ApiException.notFound("Contact not found with id: " + id));
 
         if (!existing.getUser().getId().equals(currentUser.getId()) &&
             currentUser.getRole() != User.UserRole.ADMIN) {
@@ -215,21 +216,6 @@ public class ContactController {
     }
 
     private ContactDTO convertToDTO(Contact contact) {
-        ContactDTO dto = new ContactDTO();
-        dto.setId(contact.getId());
-        dto.setBusinessId(contact.getBusiness().getId());
-        dto.setBusinessName(contact.getBusiness().getBusinessName());
-        dto.setContactDate(contact.getContactDate());
-        dto.setContactType(contact.getContactType());
-        dto.setContactStatus(contact.getContactStatus());
-        dto.setContactPerson(contact.getContactPerson());
-        dto.setNotes(contact.getNotes());
-        dto.setNextAction(contact.getNextAction());
-        dto.setNextActionDate(contact.getNextActionDate());
-        dto.setUserId(contact.getUser().getId());
-        dto.setUsername(contact.getUser().getUsername());
-        dto.setOutcome(contact.getOutcome());
-        dto.setCreatedAt(contact.getCreatedAt());
-        return dto;
+        return DtoMapper.toDto(contact);
     }
 }

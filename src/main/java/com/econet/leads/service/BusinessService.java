@@ -1,5 +1,9 @@
 package com.econet.leads.service;
 
+import com.econet.leads.dto.BusinessDTO;
+import com.econet.leads.dto.BusinessFilterOptionsDTO;
+import com.econet.leads.exception.ApiException;
+import com.econet.leads.mapper.DtoMapper;
 import com.econet.leads.model.Business;
 import com.econet.leads.repository.BusinessRepository;
 import com.econet.leads.util.AddressNormalizer;
@@ -16,7 +20,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.Collator;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -47,6 +53,33 @@ public class BusinessService {
     }
 
     @Transactional(readOnly = true)
+    public Page<BusinessDTO> findDtos(Specification<Business> spec, Pageable pageable) {
+        return businessRepository.findAll(spec, pageable).map(DtoMapper::toDto);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<BusinessDTO> findDtoById(UUID id) {
+        return businessRepository.findById(id).map(DtoMapper::toDto);
+    }
+
+    /**
+     * Distinct values for the list filters, sorted with French collation; cities are the 200 most
+     * frequent ones.
+     */
+    @Transactional(readOnly = true)
+    public BusinessFilterOptionsDTO getFilterOptions() {
+        Collator collator = Collator.getInstance(Locale.CANADA_FRENCH);
+        collator.setStrength(Collator.SECONDARY);
+        List<String> types = new ArrayList<>(businessRepository.findDistinctBusinessTypes());
+        List<String> sources = new ArrayList<>(businessRepository.findDistinctDataSources());
+        List<String> cities = new ArrayList<>(businessRepository.findTopCities(PageRequest.of(0, 200)));
+        types.sort(collator);
+        sources.sort(collator);
+        cities.sort(collator);
+        return new BusinessFilterOptionsDTO(types, cities, sources);
+    }
+
+    @Transactional(readOnly = true)
     public Page<Business> search(String searchTerm, Pageable pageable) {
         return businessRepository.fullTextSearch(searchTerm, pageable);
     }
@@ -60,7 +93,7 @@ public class BusinessService {
         Optional<Business> duplicate = findDuplicate(business);
         if (duplicate.isPresent()) {
             log.warn("Duplicate business found: {}", duplicate.get().getId());
-            throw new RuntimeException("Duplicate business already exists: " + duplicate.get().getBusinessName());
+            throw ApiException.conflict("Duplicate business already exists: " + duplicate.get().getBusinessName());
         }
 
         // Calculate quality score
@@ -73,7 +106,10 @@ public class BusinessService {
     @Transactional
     public Business update(UUID id, Business updatedBusiness) {
         Business existing = businessRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Business not found with id: " + id));
+                .orElseThrow(() -> ApiException.notFound("Business not found with id: " + id));
+        String nameBefore = existing.getBusinessName();
+        String cityBefore = existing.getAddressCity();
+        String phoneBefore = existing.getPhoneNormalized();
 
         // Patch semantics - only update non-null fields
         if (updatedBusiness.getBusinessName() != null) {
@@ -112,6 +148,12 @@ public class BusinessService {
         if (updatedBusiness.getLongitude() != null) {
             existing.setLongitude(updatedBusiness.getLongitude());
         }
+        if (updatedBusiness.getEstimatedValue() != null) {
+            existing.setEstimatedValue(updatedBusiness.getEstimatedValue());
+        }
+        if (updatedBusiness.getAssignedTo() != null) {
+            existing.setAssignedTo(updatedBusiness.getAssignedTo());
+        }
 
         // Immutable fields - cannot be changed after creation
         // dataSource, externalId, sourceUrl are locked down
@@ -119,11 +161,16 @@ public class BusinessService {
         // Normalize data
         normalizeBusinessData(existing);
 
-        // Check for duplicates (excluding current business)
-        Optional<Business> duplicate = findDuplicateExcluding(existing, id);
+        // Check for duplicates (excluding current business), only when identifying fields changed:
+        // CRM edits (estimated value, assignee, ...) must not be rejected because of pre-existing
+        // look-alikes such as chain branches sharing a phone number.
+        boolean identityChanged = !Objects.equals(nameBefore, existing.getBusinessName())
+                || !Objects.equals(cityBefore, existing.getAddressCity())
+                || !Objects.equals(phoneBefore, existing.getPhoneNormalized());
+        Optional<Business> duplicate = identityChanged ? findDuplicateExcluding(existing, id) : Optional.empty();
         if (duplicate.isPresent()) {
             log.warn("Update would create duplicate: {}", duplicate.get().getId());
-            throw new RuntimeException("Update rejected: would create duplicate of business: " + duplicate.get().getBusinessName());
+            throw ApiException.conflict("Update rejected: would create duplicate of business: " + duplicate.get().getBusinessName());
         }
 
         // Recalculate quality score
@@ -136,7 +183,7 @@ public class BusinessService {
     @Transactional
     public void delete(UUID id) {
         if (!businessRepository.existsById(id)) {
-            throw new RuntimeException("Business not found with id: " + id);
+            throw ApiException.notFound("Business not found with id: " + id);
         }
         businessRepository.deleteById(id);
     }

@@ -18,7 +18,7 @@ public class AsyncConfig {
     @Bean(name = IMPORT_EXECUTOR)
     public ThreadPoolTaskExecutor importExecutor(
             @Value("${app.import.pool-size:2}") int poolSize,
-            @Value("${app.import.queue-capacity:20}") int queueCapacity) {
+            @Value("${app.import.queue-capacity:100}") int queueCapacity) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(poolSize);
         executor.setMaxPoolSize(poolSize);

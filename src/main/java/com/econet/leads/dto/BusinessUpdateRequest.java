@@ -47,4 +47,11 @@ public class BusinessUpdateRequest {
     @DecimalMin(value = "-180.0", message = "Longitude must be between -180 and 180")
     @DecimalMax(value = "180.0", message = "Longitude must be between -180 and 180")
     private BigDecimal longitude;
+
+    @DecimalMin(value = "0.0", message = "Estimated value must be positive")
+    @Digits(integer = 8, fraction = 2, message = "Estimated value must have at most 8 digits and 2 decimals")
+    private BigDecimal estimatedValue;
+
+    /** Assign the lead to this user (null = unchanged) */
+    private UUID assignedToId;
 }

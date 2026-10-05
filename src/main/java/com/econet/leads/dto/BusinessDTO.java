@@ -1,5 +1,6 @@
 package com.econet.leads.dto;
 
+import com.econet.leads.model.LeadStatus;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -22,10 +23,20 @@ public class BusinessDTO {
     private BigDecimal latitude;
     private BigDecimal longitude;
     private String dataSource;
+    private String externalId;
     private String sourceUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime lastVerified;
     private Integer dataQualityScore;
     private String fullAddress;
+
+    // Calling CRM / pipeline
+    private LeadStatus leadStatus;
+    private UUID assignedToId;
+    private String assignedToName;
+    private LocalDateTime lastContactedAt;
+    private LocalDateTime nextFollowUpAt;
+    private Integer contactCount;
+    private BigDecimal estimatedValue;
 }

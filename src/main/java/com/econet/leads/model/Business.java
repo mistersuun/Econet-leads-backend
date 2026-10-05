@@ -3,6 +3,8 @@ package com.econet.leads.model;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -83,6 +85,32 @@ public class Business {
 
     @Column(name = "data_quality_score")
     private Integer dataQualityScore = 0;
+
+    // --- Calling CRM / pipeline fields (V6) ---
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lead_status", nullable = false, length = 30)
+    private LeadStatus leadStatus = LeadStatus.NEW;
+
+    // EAGER on purpose: every BusinessDTO exposes assignedToName and there are only a handful of
+    // users, so Hibernate resolves them from the persistence context with very few extra selects.
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "assigned_to")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private User assignedTo;
+
+    @Column(name = "last_contacted_at")
+    private LocalDateTime lastContactedAt;
+
+    @Column(name = "next_follow_up_at")
+    private LocalDateTime nextFollowUpAt;
+
+    @Column(name = "contact_count", nullable = false)
+    private Integer contactCount = 0;
+
+    @Column(name = "estimated_value", precision = 10, scale = 2)
+    private BigDecimal estimatedValue;
 
     // Helper method to get full address
     public String getFullAddress() {

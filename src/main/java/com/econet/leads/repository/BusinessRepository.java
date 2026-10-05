@@ -79,4 +79,52 @@ public interface BusinessRepository extends JpaRepository<Business, UUID>, JpaSp
     // Find stale businesses (not verified recently)
     @Query("SELECT b FROM Business b WHERE b.lastVerified IS NULL OR b.lastVerified < :cutoffDate")
     List<Business> findStaleBusinesses(@Param("cutoffDate") java.time.LocalDateTime cutoffDate);
+
+    // --- Calling queue (see LeadService#getQueue) ---
+
+    @Query("""
+            SELECT b FROM Business b LEFT JOIN b.assignedTo u
+            WHERE b.nextFollowUpAt IS NOT NULL AND b.nextFollowUpAt <= :now
+              AND b.leadStatus NOT IN :excluded
+              AND b.phone IS NOT NULL AND b.phone <> ''
+              AND (u IS NULL OR u.id = :userId)
+            ORDER BY b.nextFollowUpAt ASC, b.id ASC
+            """)
+    List<Business> findQueueFollowUpsDue(@Param("now") java.time.LocalDateTime now,
+                                         @Param("excluded") java.util.Collection<com.econet.leads.model.LeadStatus> excluded,
+                                         @Param("userId") UUID userId,
+                                         Pageable pageable);
+
+    @Query("""
+            SELECT b FROM Business b LEFT JOIN b.assignedTo u
+            WHERE b.leadStatus = com.econet.leads.model.LeadStatus.NEW
+              AND b.phone IS NOT NULL AND b.phone <> ''
+              AND (b.nextFollowUpAt IS NULL OR b.nextFollowUpAt > :now)
+              AND (u IS NULL OR u.id = :userId)
+            ORDER BY b.dataQualityScore DESC NULLS LAST, b.createdAt ASC, b.id ASC
+            """)
+    List<Business> findQueueNewLeads(@Param("now") java.time.LocalDateTime now,
+                                     @Param("userId") UUID userId,
+                                     Pageable pageable);
+
+    // --- Filter options (GET /api/businesses/filters) ---
+
+    @Query("SELECT DISTINCT b.businessType FROM Business b WHERE b.businessType IS NOT NULL AND b.businessType <> ''")
+    List<String> findDistinctBusinessTypes();
+
+    @Query("SELECT DISTINCT b.dataSource FROM Business b WHERE b.dataSource IS NOT NULL AND b.dataSource <> ''")
+    List<String> findDistinctDataSources();
+
+    @Query("""
+            SELECT b.addressCity FROM Business b
+            WHERE b.addressCity IS NOT NULL AND b.addressCity <> ''
+            GROUP BY b.addressCity
+            ORDER BY COUNT(b) DESC, b.addressCity ASC
+            """)
+    List<String> findTopCities(Pageable pageable);
+
+    // Row lock for read-modify-write of the pipeline counters (call logging)
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM Business b WHERE b.id = :id")
+    Optional<Business> findByIdForUpdate(@Param("id") UUID id);
 }
