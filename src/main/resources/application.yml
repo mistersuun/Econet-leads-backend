@@ -30,6 +30,13 @@ spring:
       write-dates-as-timestamps: false
     time-zone: America/Montreal
 
+  servlet:
+    multipart:
+      # Registre des entreprises ZIP (~225 MB) uploaded by an admin; written to disk, never buffered in memory
+      max-file-size: 300MB
+      max-request-size: 305MB
+      file-size-threshold: 1MB
+
   cache:
     type: caffeine
     caffeine:
@@ -37,6 +44,9 @@ spring:
 
 server:
   port: 8080
+  tomcat:
+    # let Tomcat read (and reject with 413) oversized uploads instead of resetting the connection
+    max-swallow-size: -1
   # Honor X-Forwarded-* from the Azure Container Apps ingress
   forward-headers-strategy: framework
   servlet:

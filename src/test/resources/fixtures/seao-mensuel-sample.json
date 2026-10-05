@@ -1,0 +1,247 @@
+{
+ "_comment": "Test fixture mirroring a SEAO OCDS release package (mensuel_YYYYMMDD_YYYYMMDD.json on Données Québec, dataset systeme-electronique-dappel-doffres-seao). Structure from the OCDS 1.1 release schema and SEAO conventions documented by parsers verified on real files: OCID 'ocds-ec9k95-<numero>', buyer + parties[roles], tender.items[].description = SEAO category, tender.documents[].url = seao.gouv.qc.ca notice page, awards[].suppliers/contractPeriod, contracts[].period. Values are invented.",
+ "uri": "https://www.donneesquebec.ca/recherche/dataset/systeme-electronique-dappel-doffres-seao",
+ "version": "1.1",
+ "publishedDate": "2026-09-30T23:59:59-04:00",
+ "publisher": {
+  "name": "Secrétariat du Conseil du trésor"
+ },
+ "license": "https://creativecommons.org/licenses/by/4.0/",
+ "releases": [
+  {
+   "ocid": "ocds-ec9k95-20170001",
+   "id": "20260915103000",
+   "date": "2026-09-15T10:30:00-04:00",
+   "tag": [
+    "tender"
+   ],
+   "initiationType": "tender",
+   "language": "fr",
+   "buyer": {
+    "id": "QC-NEQ-8830000001",
+    "name": "Centre de services scolaire de Montréal"
+   },
+   "parties": [
+    {
+     "id": "QC-NEQ-8830000001",
+     "name": "Centre de services scolaire de Montréal",
+     "roles": [
+      "buyer"
+     ],
+     "address": {
+      "streetAddress": "5100, rue Sherbrooke Est",
+      "locality": "Montréal",
+      "region": "Montréal (06)",
+      "postalCode": "H1V 3R9",
+      "countryName": "Canada"
+     },
+     "details": {
+      "municipal": "0"
+     }
+    }
+   ],
+   "tender": {
+    "id": "CSSDM-2026-118",
+    "title": "Services d'entretien ménager - écoles secondaires secteur Est",
+    "description": "Entretien ménager quotidien de cinq écoles secondaires.",
+    "status": "active",
+    "procurementMethod": "open",
+    "procurementMethodDetails": "Appel d'offres public",
+    "mainProcurementCategory": "services",
+    "items": [
+     {
+      "id": "1",
+      "description": "S12 - Services de nettoyage et d'entretien",
+      "classification": {
+       "scheme": "UNSPSC",
+       "id": "76111500",
+       "description": "Services de nettoyage et d'entretien de bâtiments généraux"
+      }
+     }
+    ],
+    "tenderPeriod": {
+     "startDate": "2026-09-15T00:00:00-04:00",
+     "endDate": "2026-10-16T14:00:00-04:00"
+    },
+    "value": {
+     "amount": 1250000.0,
+     "currency": "CAD"
+    },
+    "documents": [
+     {
+      "id": "1",
+      "documentType": "tenderNotice",
+      "url": "https://seao.gouv.qc.ca/avis-resultat-recherche/consulter?ItemId=0f0e0d0c-0b0a-4908-8706-050403020100"
+     }
+    ]
+   }
+  },
+  {
+   "ocid": "ocds-ec9k95-20160002",
+   "id": "20260920090000",
+   "date": "2026-09-20T09:00:00-04:00",
+   "tag": [
+    "award",
+    "contract"
+   ],
+   "buyer": {
+    "id": "QC-NEQ-8830000002",
+    "name": "Ville de Laval"
+   },
+   "parties": [
+    {
+     "id": "QC-NEQ-8830000002",
+     "name": "Ville de Laval",
+     "roles": [
+      "buyer"
+     ],
+     "address": {
+      "locality": "Laval",
+      "region": "Laval (13)"
+     },
+     "details": {
+      "municipal": "1"
+     }
+    },
+    {
+     "id": "QC-NEQ-1160000099",
+     "name": "Conciergerie Exemple inc.",
+     "roles": [
+      "supplier"
+     ],
+     "details": {
+      "neq": "1160000099"
+     },
+     "address": {
+      "locality": "Laval"
+     }
+    }
+   ],
+   "tender": {
+    "id": "LAV-2025-077",
+    "title": "Conciergerie des bâtiments municipaux - 3 ans",
+    "procurementMethod": "open",
+    "items": [
+     {
+      "id": "1",
+      "description": "S12 - Services de nettoyage et d'entretien"
+     }
+    ],
+    "tenderPeriod": {
+     "startDate": "2025-08-01T00:00:00-04:00",
+     "endDate": "2025-09-02T11:00:00-04:00"
+    }
+   },
+   "awards": [
+    {
+     "id": "1",
+     "title": "Conciergerie des bâtiments municipaux - 3 ans",
+     "date": "2025-10-01T00:00:00-04:00",
+     "status": "active",
+     "value": {
+      "amount": 840000.0,
+      "currency": "CAD"
+     },
+     "suppliers": [
+      {
+       "id": "QC-NEQ-1160000099",
+       "name": "Conciergerie Exemple inc."
+      }
+     ],
+     "contractPeriod": {
+      "startDate": "2025-11-01T00:00:00-04:00",
+      "endDate": "2028-10-31T00:00:00-04:00"
+     }
+    }
+   ],
+   "contracts": [
+    {
+     "id": "1",
+     "awardID": "1",
+     "status": "active",
+     "dateSigned": "2025-10-15",
+     "period": {
+      "startDate": "2025-11-01",
+      "endDate": "2028-10-31"
+     },
+     "value": {
+      "amount": 840000.0,
+      "currency": "CAD"
+     }
+    }
+   ]
+  },
+  {
+   "ocid": "ocds-ec9k95-20170003",
+   "id": "20260921120000",
+   "date": "2026-09-21T12:00:00-04:00",
+   "tag": [
+    "tender"
+   ],
+   "buyer": {
+    "id": "QC-NEQ-8830000003",
+    "name": "Ministère des Transports et de la Mobilité durable"
+   },
+   "tender": {
+    "id": "MTMD-8810-26",
+    "title": "Réfection de la chaussée - autoroute 15",
+    "items": [
+     {
+      "id": "1",
+      "description": "C01 - Travaux de génie civil"
+     }
+    ],
+    "tenderPeriod": {
+     "startDate": "2026-09-21T00:00:00-04:00",
+     "endDate": "2026-10-30T11:00:00-04:00"
+    },
+    "documents": [
+     {
+      "id": "1",
+      "url": "https://seao.gouv.qc.ca/avis-resultat-recherche/consulter?ItemId=11111111-2222-4333-8444-555555555555"
+     }
+    ]
+   }
+  },
+  {
+   "ocid": "ocds-ec9k95-20170001",
+   "id": "20260801080000",
+   "date": "2026-08-01T08:00:00-04:00",
+   "tag": [
+    "planning"
+   ],
+   "buyer": {
+    "name": "Centre de services scolaire de Montréal"
+   },
+   "tender": {
+    "title": "OLD TITLE - must not overwrite the newer release",
+    "items": [
+     {
+      "description": "S12 - Services de nettoyage et d'entretien"
+     }
+    ],
+    "tenderPeriod": {
+     "endDate": "2026-09-01T14:00:00-04:00"
+    }
+   }
+  },
+  {
+   "ocid": "ocds-ec9k95-20170004",
+   "id": "20260922120000",
+   "date": "2026-09-22T12:00:00-04:00",
+   "tag": [
+    "tenderCancellation"
+   ],
+   "buyer": {
+    "name": "Société de transport de Montréal"
+   },
+   "tender": {
+    "title": "Nettoyage des voitures de métro",
+    "status": "cancelled",
+    "tenderPeriod": {
+     "endDate": "2026-10-10T14:00:00-04:00"
+    }
+   }
+  }
+ ]
+}

@@ -62,6 +62,12 @@ public class ImportJobTracker {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void complete(UUID jobId, int processed, int added, int updated, String errors) {
+        complete(jobId, processed, added, updated, errors, null);
+    }
+
+    /** @param log non-fatal importer notes (row counts, skipped filters...), stored in scraper_jobs.log */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void complete(UUID jobId, int processed, int added, int updated, String errors, String log) {
         ScraperJob job = load(jobId);
         if (job.getStatus() == ScraperJob.JobStatus.CANCELLED) {
             return;
@@ -72,12 +78,21 @@ public class ImportJobTracker {
         job.setRecordsAdded(added);
         job.setRecordsUpdated(updated);
         job.setErrors(errors == null || errors.isEmpty() ? null : errors);
+        job.setLog(log);
         scraperJobRepository.save(job);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void fail(UUID jobId, String error) {
+        fail(jobId, error, null);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void fail(UUID jobId, String error, String log) {
         ScraperJob job = load(jobId);
+        if (log != null) {
+            job.setLog(log);
+        }
         job.setStatus(ScraperJob.JobStatus.FAILED);
         if (job.getStartedAt() == null) {
             job.setStartedAt(LocalDateTime.now());

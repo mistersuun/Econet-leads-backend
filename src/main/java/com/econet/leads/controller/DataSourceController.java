@@ -11,6 +11,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.econet.leads.integration.support.ImportFiles;
+
+import java.io.IOException;
+import java.nio.file.Path;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -78,6 +84,55 @@ public class DataSourceController {
                 .map(this::startImport)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("error", "Data source not found: " + id)));
+    }
+
+    /**
+     * Upload the Registre des entreprises ZIP (multipart field "file") and import it in the
+     * background: 202 + ScraperJobDTO. Allowed even while the source is inactive (uploading is how
+     * an admin sets it up without the 225 MB download). 400 if the source is not the register or the
+     * file is not a ZIP, 404 unknown source, 409 already running, 413 over the size limit.
+     */
+    @PostMapping(value = "/{id}/upload", consumes = "multipart/form-data")
+    public ResponseEntity<?> uploadAndImport(@PathVariable UUID id, @RequestParam("file") MultipartFile file) throws IOException {
+        DataSource dataSource = dataSourceRepository.findById(id).orElse(null);
+        if (dataSource == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Data source not found: " + id));
+        }
+        if (!com.econet.leads.integration.QuebecBusinessRegisterImporter.IMPORTER.equals(ImportService.importerOf(dataSource))) {
+            return ResponseEntity.badRequest().body(Map.of("error", "File upload is only supported for the business register source"));
+        }
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Missing or empty multipart field 'file'"));
+        }
+        if (importService.isImportRunning(dataSource)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", new ImportAlreadyRunningException(dataSource.getSourceName()).getMessage()));
+        }
+        Path target = ImportFiles.newTempFile("upload-", ".zip");
+        try {
+            file.transferTo(target);
+            if (!looksLikeZip(target)) {
+                ImportFiles.deleteQuietly(target);
+                return ResponseEntity.badRequest().body(Map.of("error", "The uploaded file is not a ZIP archive"));
+            }
+            log.info("Received {} ({} bytes) for {}", file.getOriginalFilename(), file.getSize(), dataSource.getSourceName());
+            ScraperJob job = importService.startImportFromFile(dataSource, target);
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(ScraperJobDTO.fromEntity(job));
+        } catch (ImportAlreadyRunningException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (IOException | RuntimeException e) {
+            ImportFiles.deleteQuietly(target);
+            throw e;
+        }
+    }
+
+    private static boolean looksLikeZip(Path file) throws IOException {
+        try (var in = java.nio.file.Files.newInputStream(file)) {
+            byte[] magic = in.readNBytes(4);
+            return magic.length == 4 && magic[0] == 'P' && magic[1] == 'K' && magic[2] == 3 && magic[3] == 4;
+        }
     }
 
     /**

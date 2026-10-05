@@ -29,7 +29,13 @@ public class CkanApiClient {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(15_000);
         factory.setReadTimeout(120_000);
-        return new RestTemplate(factory);
+        RestTemplate template = new RestTemplate(factory);
+        // Some portals (donnees.montreal.ca) answer 403 to requests without a User-Agent
+        template.getInterceptors().add((request, body, execution) -> {
+            request.getHeaders().set("User-Agent", "EconetLeads/1.0 (+lead import)");
+            return execution.execute(request, body);
+        });
+        return template;
     }
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -88,6 +94,72 @@ public class CkanApiClient {
         } catch (Exception e) {
             throw new CkanApiException("Error fetching CKAN data from " + baseUrl + " (resource " + resourceId
                     + ", offset " + offset + "): " + e.getMessage(), e);
+        }
+    }
+
+    /** One page of datastore_search: column names (from result.fields), records and the total count. */
+    public record DatastorePage(List<String> fields, List<Map<String, Object>> records, long total) {
+    }
+
+    /**
+     * datastore_search page with an optional sort (e.g. "date_emission desc").
+     *
+     * @throws CkanApiException with URL/reason when the request fails or success=false
+     */
+    public DatastorePage fetchDatastorePage(String baseUrl, String resourceId, int limit, int offset, String sort) {
+        String url = null;
+        try {
+            UriComponentsBuilder b = UriComponentsBuilder.fromHttpUrl(baseUrl + "datastore_search")
+                    .queryParam("resource_id", resourceId)
+                    .queryParam("limit", limit)
+                    .queryParam("offset", offset);
+            if (sort != null && !sort.isBlank()) {
+                b.queryParam("sort", sort);
+            }
+            url = b.build().encode().toUriString();
+            log.info("Fetching CKAN page: {}", url);
+            return parseDatastorePage(restTemplate.getForObject(java.net.URI.create(url), String.class), resourceId);
+        } catch (CkanApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CkanApiException("Error fetching CKAN data from " + (url != null ? url : baseUrl) + ": " + e.getMessage(), e);
+        }
+    }
+
+    /** Parses a datastore_search response body (also used by tests with fixture files). */
+    public DatastorePage parseDatastorePage(String body, String resourceId) throws java.io.IOException {
+        JsonNode root = objectMapper.readTree(body);
+        if (!root.path("success").asBoolean(false)) {
+            throw new CkanApiException("CKAN API returned success=false for resource " + resourceId + ": " + root.path("error"));
+        }
+        JsonNode result = root.path("result");
+        List<String> fields = new ArrayList<>();
+        result.path("fields").forEach(f -> fields.add(f.path("id").asText()));
+        List<Map<String, Object>> records = new ArrayList<>();
+        for (JsonNode record : result.path("records")) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = objectMapper.convertValue(record, Map.class);
+            records.add(map);
+        }
+        return new DatastorePage(fields, records, result.path("total").asLong(-1));
+    }
+
+    /** CKAN action call returning the "result" node (package_show, resource_show...). */
+    public JsonNode action(String baseUrl, String action, Map<String, String> params) {
+        String url = null;
+        try {
+            UriComponentsBuilder b = UriComponentsBuilder.fromHttpUrl(baseUrl + action);
+            params.forEach(b::queryParam);
+            url = b.build().encode().toUriString();
+            JsonNode root = objectMapper.readTree(restTemplate.getForObject(java.net.URI.create(url), String.class));
+            if (!root.path("success").asBoolean(false)) {
+                throw new CkanApiException("CKAN " + action + " returned success=false: " + root.path("error"));
+            }
+            return root.path("result");
+        } catch (CkanApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CkanApiException("Error calling CKAN " + (url != null ? url : baseUrl + action) + ": " + e.getMessage(), e);
         }
     }
 
