@@ -2,18 +2,13 @@ package com.econet.leads.integration;
 
 import com.econet.leads.model.Business;
 import com.econet.leads.model.DataSource;
-import com.econet.leads.model.ScraperJob;
-import com.econet.leads.repository.DataSourceRepository;
-import com.econet.leads.repository.ScraperJobRepository;
-import com.econet.leads.service.BusinessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Generic service for importing data from any CKAN API endpoint
@@ -44,88 +39,31 @@ import java.util.Map;
 public class GenericCkanImportService {
 
     private final CkanApiClient ckanApiClient;
-    private final BusinessService businessService;
-    private final DataSourceRepository dataSourceRepository;
-    private final ScraperJobRepository scraperJobRepository;
 
     /**
-     * Import data from a CKAN data source using its configuration
+     * Fetch all records of a CKAN source and map them to Business candidates using its config.
      */
-    public ScraperJob importFromCkan(DataSource dataSource) {
-        log.info("Starting CKAN import for: {}", dataSource.getSourceName());
-
-        // Parse configuration
-        CkanImportConfig config;
-        try {
-            config = parseConfig(dataSource.getConfig());
-        } catch (Exception e) {
-            log.error("Invalid config for data source {}: {}", dataSource.getSourceName(), e.getMessage());
-            ScraperJob failedJob = createJob(dataSource);
-            return updateJobFailure(failedJob, "Invalid configuration: " + e.getMessage());
-        }
-
-        ScraperJob job = createJob(dataSource);
-
-        try {
-            // Fetch all records
-            List<Map<String, Object>> records = ckanApiClient.fetchAllRecords(
-                    config.getCkanBaseUrl(),
-                    config.getResourceId(),
-                    config.getBatchSize()
-            );
-
-            log.info("Processing {} records from {}...", records.size(), dataSource.getSourceName());
-
-            int processed = 0;
-            int added = 0;
-            int updated = 0;
-            StringBuilder errors = new StringBuilder();
-
-            for (Map<String, Object> record : records) {
-                try {
-                    Business business = mapRecordToBusiness(record, config, dataSource);
-                    Business result = businessService.findOrCreate(business);
-
-                    if (result.getCreatedAt().isAfter(LocalDateTime.now().minusSeconds(5))) {
-                        added++;
-                    } else {
-                        updated++;
-                    }
-
-                    processed++;
-
-                    // Update progress every 50 records
-                    if (processed % 50 == 0) {
-                        log.info("Processed {}/{} records", processed, records.size());
-                        updateJobProgress(job, processed, added, updated);
-                    }
-
-                } catch (Exception e) {
-                    log.error("Error processing record: {}", e.getMessage());
-                    errors.append(String.format("Record %d: %s\n", processed, e.getMessage()));
-                }
-            }
-
-            job = updateJobSuccess(job, processed, added, updated, errors.toString());
-            updateDataSource(dataSource, processed);
-
-            log.info("{} import completed: {} processed, {} added, {} updated",
-                    dataSource.getSourceName(), processed, added, updated);
-
-        } catch (Exception e) {
-            log.error("{} import failed: {}", dataSource.getSourceName(), e.getMessage(), e);
-            job = updateJobFailure(job, e.getMessage());
-        }
-
-        return job;
+    public List<Business> fetchBusinesses(DataSource dataSource, CkanImportConfig config) {
+        List<Map<String, Object>> records = ckanApiClient.fetchAllRecords(
+                config.getCkanBaseUrl(),
+                config.getResourceId(),
+                config.getBatchSize()
+        );
+        log.info("Fetched {} records from {}", records.size(), dataSource.getSourceName());
+        return records.stream()
+                .map(record -> mapRecordToBusiness(record, config, dataSource))
+                .collect(Collectors.toList());
     }
 
     /**
-     * Parse CKAN import configuration from Map
+     * Parse and validate the CKAN import configuration of a data source.
+     *
+     * @throws IllegalArgumentException if the configuration is missing or incomplete
      */
-    private CkanImportConfig parseConfig(Map<String, Object> configMap) throws Exception {
+    public CkanImportConfig parseConfig(DataSource dataSource) {
+        Map<String, Object> configMap = dataSource.getConfig();
         if (configMap == null || configMap.isEmpty()) {
-            throw new IllegalArgumentException("Config is empty");
+            throw new IllegalArgumentException("Invalid configuration for " + dataSource.getSourceName() + ": config is empty");
         }
 
         CkanImportConfig config = new CkanImportConfig();
@@ -150,6 +88,16 @@ public class GenericCkanImportService {
             config.setExternalIdField(getStringFromMap(fieldMapping, "externalId", "_id"));
         }
 
+        if (config.getResourceId() == null || config.getResourceId().isBlank()
+                || "to_be_configured".equals(config.getResourceId())) {
+            throw new IllegalArgumentException("Invalid configuration for " + dataSource.getSourceName() + ": resourceId is missing");
+        }
+        if (config.getBusinessNameField() == null) {
+            throw new IllegalArgumentException("Invalid configuration for " + dataSource.getSourceName() + ": fieldMapping.businessName is missing");
+        }
+        if (config.getBusinessType() == null) {
+            throw new IllegalArgumentException("Invalid configuration for " + dataSource.getSourceName() + ": businessType is missing");
+        }
         return config;
     }
 
@@ -232,54 +180,10 @@ public class GenericCkanImportService {
         return str.isEmpty() ? null : str;
     }
 
-    @Transactional
-    private ScraperJob createJob(DataSource dataSource) {
-        ScraperJob job = new ScraperJob();
-        job.setSource(dataSource);
-        job.setJobType(ScraperJob.JobType.FULL_SYNC);
-        job.setStatus(ScraperJob.JobStatus.RUNNING);
-        job.setStartedAt(LocalDateTime.now());
-        return scraperJobRepository.save(job);
-    }
-
-    @Transactional
-    private void updateJobProgress(ScraperJob job, int processed, int added, int updated) {
-        job.setRecordsProcessed(processed);
-        job.setRecordsAdded(added);
-        job.setRecordsUpdated(updated);
-        scraperJobRepository.save(job);
-    }
-
-    @Transactional
-    private ScraperJob updateJobSuccess(ScraperJob job, int processed, int added, int updated, String errors) {
-        job.setStatus(ScraperJob.JobStatus.COMPLETED);
-        job.setCompletedAt(LocalDateTime.now());
-        job.setRecordsProcessed(processed);
-        job.setRecordsAdded(added);
-        job.setRecordsUpdated(updated);
-        job.setErrors(errors);
-        return scraperJobRepository.save(job);
-    }
-
-    @Transactional
-    private ScraperJob updateJobFailure(ScraperJob job, String error) {
-        job.setStatus(ScraperJob.JobStatus.FAILED);
-        job.setCompletedAt(LocalDateTime.now());
-        job.setErrors(error);
-        return scraperJobRepository.save(job);
-    }
-
-    @Transactional
-    private void updateDataSource(DataSource dataSource, int recordsCount) {
-        dataSource.setLastSync(LocalDateTime.now());
-        dataSource.setRecordsCount(recordsCount);
-        dataSourceRepository.save(dataSource);
-    }
-
     /**
      * Inner class to hold parsed configuration
      */
-    private static class CkanImportConfig {
+    static class CkanImportConfig {
         private String resourceId;
         private String ckanBaseUrl;
         private int batchSize;

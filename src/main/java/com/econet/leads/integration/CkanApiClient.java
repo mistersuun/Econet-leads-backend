@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -21,7 +22,15 @@ import java.util.Map;
 @Slf4j
 public class CkanApiClient {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = createRestTemplate();
+
+    private static RestTemplate createRestTemplate() {
+        // Without timeouts a stalled open-data portal would block an import thread forever
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(15_000);
+        factory.setReadTimeout(120_000);
+        return new RestTemplate(factory);
+    }
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -32,6 +41,8 @@ public class CkanApiClient {
      * @param limit Number of records to fetch
      * @param offset Offset for pagination
      * @return List of records as maps
+     * @throws CkanApiException if the request fails or the API reports success=false. (This used to
+     *         return an empty list, which made a network failure look like a successful, empty import.)
      */
     public List<Map<String, Object>> fetchDatastoreRecords(
             String baseUrl,
@@ -68,13 +79,25 @@ public class CkanApiClient {
                 log.info("Successfully fetched {} records", result.size());
                 return result;
             } else {
-                log.error("CKAN API returned success=false");
-                return List.of();
+                throw new CkanApiException("CKAN API returned success=false for resource " + resourceId
+                        + ": " + root.path("error").toString());
             }
 
+        } catch (CkanApiException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("Error fetching CKAN data: {}", e.getMessage(), e);
-            return List.of();
+            throw new CkanApiException("Error fetching CKAN data from " + baseUrl + " (resource " + resourceId
+                    + ", offset " + offset + "): " + e.getMessage(), e);
+        }
+    }
+
+    public static class CkanApiException extends RuntimeException {
+        public CkanApiException(String message) {
+            super(message);
+        }
+
+        public CkanApiException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 
@@ -116,10 +139,15 @@ public class CkanApiClient {
             } else {
                 allRecords.addAll(batch);
                 offset += batchSize;
+                // A short page is the last page; avoids one extra request
+                hasMore = batch.size() >= batchSize;
 
                 log.info("Fetched {} total records so far...", allRecords.size());
 
                 // Sleep to avoid overwhelming the API
+                if (!hasMore) {
+                    break;
+                }
                 try {
                     Thread.sleep(500);
                 } catch (InterruptedException e) {

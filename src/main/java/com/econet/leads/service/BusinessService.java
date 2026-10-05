@@ -9,13 +9,16 @@ import com.econet.leads.util.StringSimilarity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -139,20 +142,30 @@ public class BusinessService {
     }
 
     /**
-     * Find or create business (for imports/scraping)
+     * Result of an import upsert: the persisted business and whether it was newly created.
      */
-    @Transactional
-    public Business findOrCreate(Business business) {
+    public record UpsertResult(Business business, boolean created) {}
+
+    /**
+     * Find-or-create a business coming from an import/scraper.
+     *
+     * Runs in its own transaction (REQUIRES_NEW) so each record commits or rolls back on its own:
+     * a single bad record (constraint violation, unexpected data) can never mark the import's
+     * other records rollback-only. Callers (ImportJobRunner) are not transactional and catch
+     * exceptions per record.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public UpsertResult importRecord(Business business) {
         // Normalize candidate data BEFORE duplicate detection
         normalizeBusinessData(business);
 
         // Check by external ID first
         if (business.getExternalId() != null && business.getDataSource() != null) {
             Optional<Business> existing = businessRepository
-                    .findByExternalIdAndDataSource(business.getExternalId(), business.getDataSource());
+                    .findFirstByExternalIdAndDataSourceOrderByCreatedAtAsc(business.getExternalId(), business.getDataSource());
             if (existing.isPresent()) {
                 log.debug("Found existing business by external ID: {}", existing.get().getId());
-                return updateExisting(existing.get(), business);
+                return new UpsertResult(updateExisting(existing.get(), business), false);
             }
         }
 
@@ -160,12 +173,12 @@ public class BusinessService {
         Optional<Business> duplicate = findDuplicate(business);
         if (duplicate.isPresent()) {
             log.debug("Found duplicate business: {}", duplicate.get().getId());
-            return updateExisting(duplicate.get(), business);
+            return new UpsertResult(updateExisting(duplicate.get(), business), false);
         }
 
         // Create new business
         business.setDataQualityScore(dataQualityService.calculateQualityScore(business));
-        return businessRepository.save(business);
+        return new UpsertResult(businessRepository.save(business), true);
     }
 
     /**
@@ -247,44 +260,95 @@ public class BusinessService {
         // 1. Exact match on name and city
         if (candidate.getBusinessName() != null && candidate.getAddressCity() != null) {
             Optional<Business> exact = businessRepository
-                    .findByBusinessNameAndAddressCity(candidate.getBusinessName(), candidate.getAddressCity());
-            if (exact.isPresent() && !exact.get().getId().equals(excludeId)) {
+                    .findTop10ByBusinessNameAndAddressCityOrderByCreatedAtAsc(candidate.getBusinessName(), candidate.getAddressCity())
+                    .stream()
+                    .filter(b -> !b.getId().equals(excludeId))
+                    .findFirst();
+            if (exact.isPresent()) {
                 return exact;
             }
         }
 
-        // 2. Phone number match
+        // 2. Phone number match. Chains often share one head-office number across many branches,
+        //    so a phone match only counts as a duplicate when the cities are compatible (same city,
+        //    or one side has no city). Otherwise distinct branches would be merged into one lead and
+        //    have their address overwritten.
         if (candidate.getPhone() != null) {
             String normalizedPhone = PhoneFormatter.normalize(candidate.getPhone());
-            Optional<Business> phoneMatch = businessRepository.findByPhoneNormalized(normalizedPhone);
-            if (phoneMatch.isPresent() && !phoneMatch.get().getId().equals(excludeId)) {
-                return phoneMatch;
+            if (normalizedPhone != null && !normalizedPhone.isEmpty()) {
+                Optional<Business> phoneMatch = businessRepository
+                        .findTop20ByPhoneNormalizedOrderByCreatedAtAsc(normalizedPhone)
+                        .stream()
+                        .filter(b -> !b.getId().equals(excludeId))
+                        .filter(b -> citiesCompatible(candidate.getAddressCity(), b.getAddressCity()))
+                        .findFirst();
+                if (phoneMatch.isPresent()) {
+                    return phoneMatch;
+                }
             }
         }
 
         // 3. Fuzzy name matching (Levenshtein distance)
-        if (candidate.getAddressCity() != null && candidate.getBusinessType() != null) {
-            List<Business> similar = businessRepository
-                    .findByAddressCityAndBusinessType(candidate.getAddressCity(), candidate.getBusinessType());
+        return findFuzzyDuplicate(candidate, excludeId);
+    }
 
-            for (Business existing : similar) {
-                // Skip if this is the business being updated
-                if (excludeId != null && existing.getId().equals(excludeId)) {
-                    continue;
-                }
+    private static boolean citiesCompatible(String a, String b) {
+        return a == null || b == null || a.equalsIgnoreCase(b);
+    }
 
-                double similarity = StringSimilarity.calculate(
-                        candidate.getBusinessName(),
-                        existing.getBusinessName()
-                );
-                if (similarity > 0.85) {
-                    log.debug("Found fuzzy match with similarity: {}", similarity);
-                    return Optional.of(existing);
-                }
+    static final double FUZZY_THRESHOLD = 0.85;
+    static final int FUZZY_PREFIX_LENGTH = 3;
+    static final int FUZZY_MAX_CANDIDATES = 200;
+
+    /**
+     * Fuzzy duplicate check, bounded so imports stay roughly O(n) instead of O(n^2).
+     *
+     * Previously every record loaded *all* businesses with the same city + type (thousands of rows
+     * for e.g. "Restaurant" in Montreal) and ran Levenshtein against each. We now block candidates
+     * in the database before comparing:
+     *  - same city and type (as before);
+     *  - lower-cased name starts with the same first 3 characters ("blocking key"). Near-identical
+     *    names almost always share their beginning; a typo in the first 3 characters will no longer
+     *    be caught, which is an accepted trade-off;
+     *  - name length within [0.85 * len, len / 0.85]. This filter is exact, not heuristic: the
+     *    Levenshtein distance is at least the length difference, so names outside this range can
+     *    never reach the 0.85 similarity threshold;
+     *  - at most 200 candidates, oldest first (deterministic), as a hard cap.
+     */
+    private Optional<Business> findFuzzyDuplicate(Business candidate, UUID excludeId) {
+        String name = candidate.getBusinessName();
+        if (candidate.getAddressCity() == null || candidate.getBusinessType() == null || name == null) {
+            return Optional.empty();
+        }
+        String lower = name.trim().toLowerCase(Locale.ROOT);
+        if (lower.isEmpty()) {
+            return Optional.empty();
+        }
+        int len = lower.length();
+        int minLength = (int) Math.floor(len * FUZZY_THRESHOLD);
+        int maxLength = (int) Math.ceil(len / FUZZY_THRESHOLD);
+        String prefix = lower.substring(0, Math.min(FUZZY_PREFIX_LENGTH, len));
+        String likePattern = escapeLike(prefix) + "%";
+
+        List<Business> candidates = businessRepository.findFuzzyCandidates(
+                candidate.getAddressCity(), candidate.getBusinessType(), likePattern,
+                minLength, maxLength, PageRequest.of(0, FUZZY_MAX_CANDIDATES));
+
+        for (Business existing : candidates) {
+            if (excludeId != null && existing.getId().equals(excludeId)) {
+                continue;
+            }
+            double similarity = StringSimilarity.calculate(name, existing.getBusinessName());
+            if (similarity > FUZZY_THRESHOLD) {
+                log.debug("Found fuzzy match with similarity: {}", similarity);
+                return Optional.of(existing);
             }
         }
-
         return Optional.empty();
+    }
+
+    private static String escapeLike(String s) {
+        return s.replace("!", "!!").replace("%", "!%").replace("_", "!_");
     }
 
     /**

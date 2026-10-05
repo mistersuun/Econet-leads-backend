@@ -18,6 +18,9 @@ import java.util.UUID;
 public class ScraperJobDTO {
 
     private UUID id;
+    // Flat copies of source.id / source.sourceName for convenience in clients
+    private UUID sourceId;
+    private String sourceName;
     private DataSourceSummaryDTO source;
     private ScraperJob.JobType jobType;
     private ScraperJob.JobStatus status;
@@ -71,9 +74,11 @@ public class ScraperJobDTO {
             DataSourceSummaryDTO sourceDTO = new DataSourceSummaryDTO();
             sourceDTO.setId(job.getSource().getId());
             sourceDTO.setSourceName(job.getSource().getSourceName());
-            sourceDTO.setSourceType(job.getSource().getSourceType().toString());
+            sourceDTO.setSourceType(job.getSource().getSourceType() != null ? job.getSource().getSourceType().toString() : null);
             sourceDTO.setSourceUrl(job.getSource().getSourceUrl());
             dto.setSource(sourceDTO);
+            dto.setSourceId(sourceDTO.getId());
+            dto.setSourceName(sourceDTO.getSourceName());
         }
 
         return dto;
