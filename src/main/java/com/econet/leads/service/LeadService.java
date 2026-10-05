@@ -87,6 +87,9 @@ public class LeadService {
                 ? request.getNextFollowUpAt()
                 : defaultFollowUp(outcome, newStatus, now);
 
+        // The new call supersedes follow-ups planned on earlier contacts
+        contactRepository.clearNextActionDates(lead.getId());
+
         Contact contact = new Contact();
         contact.setBusiness(lead);
         contact.setUser(caller);
@@ -141,6 +144,7 @@ public class LeadService {
         lead.setLeadStatus(next);
         if (next.isTerminal()) {
             lead.setNextFollowUpAt(null);
+            contactRepository.clearNextActionDates(lead.getId());
         }
         lead = businessRepository.saveAndFlush(lead);
 

@@ -53,4 +53,12 @@ public interface ContactRepository extends JpaRepository<Contact, UUID> {
     // Find contact by ID with associations
     @Query("SELECT c FROM Contact c LEFT JOIN FETCH c.business LEFT JOIN FETCH c.user WHERE c.id = :id")
     Optional<Contact> findByIdWithAssociations(@Param("id") UUID id);
+
+    /**
+     * Clears pending next-action dates of a lead's earlier contacts when a newer call/status
+     * supersedes them, so /api/contacts/upcoming does not list stale follow-ups.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE Contact c SET c.nextActionDate = NULL WHERE c.business.id = :businessId AND c.nextActionDate IS NOT NULL")
+    int clearNextActionDates(@Param("businessId") UUID businessId);
 }
