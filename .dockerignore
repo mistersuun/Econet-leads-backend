@@ -1,0 +1,22 @@
+# Keep the build context small and free of secrets
+.git
+.github
+.idea
+.vscode
+*.iml
+target
+.mvn/wrapper/maven-wrapper.jar
+.env
+.env.*
+!.env.example
+token.txt
+*.token
+*.log
+import_result*.json
+documentation
+*.md
+test_api.py
+test_api.sh
+docker-compose.yml
+Dockerfile
+.dockerignore
