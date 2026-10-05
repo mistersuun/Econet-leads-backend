@@ -43,3 +43,8 @@ Thumbs.db
 chromedriver
 geckodriver
 screenshots/
+
+# Secrets / scratch output (never commit tokens)
+token.txt
+*.token
+import_result*.json
