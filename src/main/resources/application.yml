@@ -30,6 +30,13 @@ spring:
       write-dates-as-timestamps: false
     time-zone: America/Montreal
 
+  servlet:
+    multipart:
+      # Registre des entreprises ZIP (~225 MB) uploaded by an admin; written to disk, never buffered in memory
+      max-file-size: 300MB
+      max-request-size: 305MB
+      file-size-threshold: 1MB
+
   cache:
     type: caffeine
     caffeine:
@@ -37,10 +44,22 @@ spring:
 
 server:
   port: 8080
+  tomcat:
+    # let Tomcat read (and reject with 413) oversized uploads instead of resetting the connection
+    max-swallow-size: -1
+  # Honor X-Forwarded-* from the Azure Container Apps ingress
+  forward-headers-strategy: framework
   servlet:
     context-path: /
   compression:
     enabled: true
+
+management:
+  health:
+    # Redis is on the classpath but not used by the application (cache is Caffeine); don't let an
+    # unreachable Redis mark the container unhealthy.
+    redis:
+      enabled: false
 
 springdoc:
   api-docs:
@@ -52,10 +71,26 @@ springdoc:
 # Application Configuration
 app:
   jwt:
-    secret: ${JWT_SECRET:dev-secret-key-change-in-production-min-256-bits-for-hs256-algorithm}
+    # REQUIRED outside the local profile: at least 32 bytes each, e.g. `openssl rand -hex 32`.
+    # Startup fails if they are missing or too short (see JwtConfigProperties).
+    secret: ${JWT_SECRET:}
     expiration-ms: 86400000  # 24 hours
-    refresh-secret: ${JWT_REFRESH_SECRET:dev-refresh-secret-key-change-in-production-min-256-bits-for-hs256-algorithm}
+    refresh-secret: ${JWT_REFRESH_SECRET:}
     refresh-expiration-ms: 2592000000  # 30 days
+
+  admin:
+    # Password of the bootstrap admin, used only when no admin account exists yet (or when the admin
+    # still has the well-known seed password from V2). If empty, a random password is generated and
+    # logged once at WARN level. Never overwrites a password that was changed.
+    initial-password: ${ADMIN_INITIAL_PASSWORD:}
+
+  cors:
+    # Comma-separated list of origins allowed to call the API from a browser
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+
+  import:
+    pool-size: 2         # concurrent background imports
+    queue-capacity: 100  # queued imports before new ones are rejected
 
   scraper:
     enabled: true

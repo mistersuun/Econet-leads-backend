@@ -1,6 +1,8 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb
+    # PostgreSQL compatibility mode; JSONB is declared as a domain so the DataSource.config column
+    # (columnDefinition = "jsonb") can be created by Hibernate on H2.
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;INIT=CREATE DOMAIN IF NOT EXISTS JSONB AS JSON
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -9,7 +11,7 @@ spring:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: create-drop
-    show-sql: true
+    show-sql: false
 
   flyway:
     enabled: false
@@ -17,7 +19,14 @@ server:
   port: 8081
 
 app:
+  jwt:
+    # Test-only secrets (>= 32 bytes)
+    secret: test-access-secret-0123456789abcdef0123456789abcdef
+    refresh-secret: test-refresh-secret-0123456789abcdef0123456789abcdef
+  admin:
+    initial-password: test-admin-password
   scraper:
+    mock-pages-jaunes: true  # mock source with invented businesses; never enable in prod
     enabled: false
 
   scheduler:
@@ -25,4 +34,4 @@ app:
 
 logging:
   level:
-    com.econet.leads: DEBUG
+    com.econet.leads: INFO

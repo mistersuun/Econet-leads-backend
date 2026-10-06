@@ -1,21 +1,16 @@
 package com.econet.leads.integration;
 
 import com.econet.leads.model.Business;
-import com.econet.leads.model.DataSource;
-import com.econet.leads.model.ScraperJob;
-import com.econet.leads.repository.DataSourceRepository;
-import com.econet.leads.repository.ScraperJobRepository;
-import com.econet.leads.service.BusinessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Service for scraping business data from Pages Jaunes (Yellow Pages)
@@ -32,72 +27,23 @@ import java.util.Map;
 @Slf4j
 public class PagesJaunesScraperService {
 
-    private static final String DATA_SOURCE_NAME = "Pages Jaunes - Manual Scraping";
+    public static final String DATA_SOURCE_NAME = "Pages Jaunes - Manual Scraping";
     private static final int RATE_LIMIT_MS = 3000; // 3 seconds between requests
 
-    private final BusinessService businessService;
-    private final DataSourceRepository dataSourceRepository;
-    private final ScraperJobRepository scraperJobRepository;
+    @Value("${app.scraper.mock-pages-jaunes:false}")
+    private boolean mockEnabled;
 
     /**
-     * Scrape business data from Pages Jaunes
-     * Note: This is a MOCK implementation with sample data
+     * Scrape (mock) Pages Jaunes and map the results to Business candidates.
      */
-    public ScraperJob scrapeBusinesses() {
-        log.info("Starting Pages Jaunes scraping...");
-
-        DataSource dataSource = getOrCreateDataSource();
-        ScraperJob job = createJob(dataSource);
-
-        try {
-            // Mock scraping - real implementation would use Selenium/WebDriver
-            List<Map<String, Object>> scrapedData = performMockScraping();
-
-            log.info("Processing {} scraped records...", scrapedData.size());
-
-            int processed = 0;
-            int added = 0;
-            int updated = 0;
-            StringBuilder errors = new StringBuilder();
-
-            for (Map<String, Object> record : scrapedData) {
-                try {
-                    Business business = mapScrapedDataToBusiness(record);
-                    Business result = businessService.findOrCreate(business);
-
-                    if (result.getCreatedAt().isAfter(LocalDateTime.now().minusSeconds(5))) {
-                        added++;
-                    } else {
-                        updated++;
-                    }
-
-                    processed++;
-
-                    if (processed % 10 == 0) {
-                        log.info("Processed {}/{} records", processed, scrapedData.size());
-                    }
-
-                    // Simulate rate limiting
-                    Thread.sleep(100); // Mock delay
-
-                } catch (Exception e) {
-                    log.error("Error processing Pages Jaunes record: {}", e.getMessage());
-                    errors.append(String.format("Record %d: %s\n", processed, e.getMessage()));
-                }
-            }
-
-            job = updateJobSuccess(job, processed, added, updated, errors.toString());
-            updateDataSource(dataSource, processed);
-
-            log.info("Pages Jaunes scraping completed: {} processed, {} added, {} updated",
-                    processed, added, updated);
-
-        } catch (Exception e) {
-            log.error("Pages Jaunes scraping failed: {}", e.getMessage(), e);
-            job = updateJobFailure(job, e.getMessage());
+    public List<Business> fetchBusinesses() {
+        if (!mockEnabled) {
+            throw new IllegalStateException(
+                    "Pages Jaunes is a mock source that returns invented businesses; it can only run with app.scraper.mock-pages-jaunes=true (local development).");
         }
-
-        return job;
+        return performMockScraping().stream()
+                .map(this::mapScrapedDataToBusiness)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -142,57 +88,6 @@ public class PagesJaunesScraperService {
 
         log.info("Mock scraping generated {} sample records", scrapedData.size());
         return scrapedData;
-    }
-
-    @Transactional
-    private DataSource getOrCreateDataSource() {
-        return dataSourceRepository
-                .findBySourceName(DATA_SOURCE_NAME)
-                .orElseGet(() -> {
-                    DataSource ds = new DataSource();
-                    ds.setSourceName(DATA_SOURCE_NAME);
-                    ds.setSourceType(DataSource.SourceType.WEB_SCRAPER);
-                    ds.setSourceUrl("https://www.pagesjaunes.ca");
-                    ds.setSyncFrequency(DataSource.SyncFrequency.MANUAL);
-                    ds.setActive(true);
-                    return dataSourceRepository.save(ds);
-                });
-    }
-
-    @Transactional
-    private ScraperJob createJob(DataSource dataSource) {
-        ScraperJob job = new ScraperJob();
-        job.setSource(dataSource);
-        job.setJobType(ScraperJob.JobType.FULL_SYNC);
-        job.setStatus(ScraperJob.JobStatus.RUNNING);
-        job.setStartedAt(LocalDateTime.now());
-        return scraperJobRepository.save(job);
-    }
-
-    @Transactional
-    private ScraperJob updateJobSuccess(ScraperJob job, int processed, int added, int updated, String errors) {
-        job.setStatus(ScraperJob.JobStatus.COMPLETED);
-        job.setCompletedAt(LocalDateTime.now());
-        job.setRecordsProcessed(processed);
-        job.setRecordsAdded(added);
-        job.setRecordsUpdated(updated);
-        job.setErrors(errors);
-        return scraperJobRepository.save(job);
-    }
-
-    @Transactional
-    private ScraperJob updateJobFailure(ScraperJob job, String error) {
-        job.setStatus(ScraperJob.JobStatus.FAILED);
-        job.setCompletedAt(LocalDateTime.now());
-        job.setErrors(error);
-        return scraperJobRepository.save(job);
-    }
-
-    @Transactional
-    private void updateDataSource(DataSource dataSource, int recordsCount) {
-        dataSource.setLastSync(LocalDateTime.now());
-        dataSource.setRecordsCount(recordsCount);
-        dataSourceRepository.save(dataSource);
     }
 
     /**

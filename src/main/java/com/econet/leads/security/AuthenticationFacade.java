@@ -1,11 +1,12 @@
 package com.econet.leads.security;
 
+import com.econet.leads.exception.ApiException;
 import com.econet.leads.model.User;
+import org.springframework.http.HttpStatus;
 import com.econet.leads.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -17,12 +18,12 @@ public class AuthenticationFacade {
     public User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
-            throw new SecurityException("No authenticated user found");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Not authenticated");
         }
 
         String username = authentication.getName();
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "User not found: " + username));
     }
 
     public String getCurrentUsername() {

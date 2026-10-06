@@ -1,6 +1,8 @@
 package com.econet.leads.security;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -32,6 +34,10 @@ public class SecurityConfig {
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    /** app.cors.allowed-origins / CORS_ALLOWED_ORIGINS, comma-separated */
+    @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000}")
+    private String allowedOrigins;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -40,11 +46,22 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
+                .exceptionHandling(ex -> ex
+                        // 401 (not Spring's default 403) when the token is missing/invalid, so clients can refresh
+                        .authenticationEntryPoint((request, response, e) ->
+                                writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
+                        .accessDeniedHandler((request, response, e) ->
+                                writeError(response, HttpServletResponse.SC_FORBIDDEN, "Access denied"))
+                )
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers("/error").permitAll()
+
+                        // Account creation is restricted to administrators
+                        .requestMatchers("/api/auth/register").hasRole("ADMIN")
 
                         // Admin-only endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
@@ -53,8 +70,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/scraper-jobs/**").hasRole("ADMIN")
                         .requestMatchers("/api/data-sources/**").hasRole("ADMIN")
 
-                        // All other API endpoints require authentication
-                        .requestMatchers("/api/**").authenticated()
+                        // Every role (including VIEWER) can read: leads, queue, dashboard, contacts, /api/auth/me
+                        .requestMatchers(HttpMethod.GET, "/api/**").authenticated()
+
+                        // Writes (log calls, change status, edit leads/contacts) need USER or ADMIN
+                        .requestMatchers("/api/**").hasAnyRole("ADMIN", "USER")
 
                         .anyRequest().permitAll()
                 )
@@ -85,14 +105,25 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000"));
+        configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toList());
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
+        configuration.setExposedHeaders(List.of("Content-Disposition"));
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    private static void writeError(HttpServletResponse response, int status, String message) throws java.io.IOException {
+        response.setStatus(status);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        response.getWriter().write("{\"error\":\"" + message + "\"}");
     }
 }

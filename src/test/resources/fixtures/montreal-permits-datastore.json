@@ -1,0 +1,203 @@
+{
+ "help": "https://donnees.montreal.ca/api/3/action/help_show?name=datastore_search",
+ "success": true,
+ "result": {
+  "include_total": true,
+  "limit": 1000,
+  "records_format": "objects",
+  "resource_id": "5232a72d-235a-48eb-ae20-bb9d501300ad",
+  "total_estimation_threshold": null,
+  "records": [
+   {
+    "_id": 1,
+    "no_demande": "3003456789",
+    "id_permis": "3000001",
+    "date_debut": "2026-09-01T00:00:00",
+    "date_emission": "2026-09-28T00:00:00",
+    "emplacement": "1250 rue Exemple",
+    "arrondissement": "Ville-Marie",
+    "code_type_base_demande": "CO",
+    "description_type_demande": "Construction",
+    "description_type_batiment": "Commercial",
+    "description_categorie_batiment": "Bureaux",
+    "nature_travaux": "CONSTRUCTION D'UN IMMEUBLE DE BUREAUX DE 6 ETAGES",
+    "nb_logements": null,
+    "longitude": -73.5673,
+    "latitude": 45.5017,
+    "loc_x": 295000.1,
+    "loc_y": 5040000.2
+   },
+   {
+    "_id": 2,
+    "no_demande": "3003456790",
+    "id_permis": "3000002",
+    "date_debut": "2026-09-01T00:00:00",
+    "date_emission": "2026-09-25T00:00:00",
+    "emplacement": "45 avenue Factice",
+    "arrondissement": "Le Plateau-Mont-Royal",
+    "code_type_base_demande": "TR",
+    "description_type_demande": "Transformation",
+    "description_type_batiment": "Habitation",
+    "description_categorie_batiment": "Unifamiliale",
+    "nature_travaux": "RENOVATION INTERIEURE, CHANGER LES FENETRES",
+    "nb_logements": 1,
+    "longitude": -73.58,
+    "latitude": 45.52,
+    "loc_x": 295000.1,
+    "loc_y": 5040000.2
+   },
+   {
+    "_id": 3,
+    "no_demande": "3003456791",
+    "id_permis": "3000003",
+    "date_debut": "2026-09-01T00:00:00",
+    "date_emission": "2026-09-20T00:00:00",
+    "emplacement": "8800 boulevard Modele",
+    "arrondissement": "Saint-Laurent",
+    "code_type_base_demande": "CO",
+    "description_type_demande": "Construction",
+    "description_type_batiment": "Habitation",
+    "description_categorie_batiment": "Multifamiliale",
+    "nature_travaux": "CONSTRUCTION D'UN BATIMENT DE 48 LOGEMENTS",
+    "nb_logements": 48,
+    "longitude": -73.7,
+    "latitude": 45.5,
+    "loc_x": 295000.1,
+    "loc_y": 5040000.2
+   },
+   {
+    "_id": 4,
+    "no_demande": "3003456792",
+    "id_permis": "3000004",
+    "date_debut": "2026-09-01T00:00:00",
+    "date_emission": "2026-09-18T00:00:00",
+    "emplacement": "300 rue Abattage",
+    "arrondissement": "Verdun",
+    "code_type_base_demande": "CA",
+    "description_type_demande": "CA- Abattage d'arbre",
+    "description_type_batiment": "Habitation",
+    "description_categorie_batiment": "Unifamiliale",
+    "nature_travaux": "ABATTAGE D'UN FRENE",
+    "nb_logements": null,
+    "longitude": -73.57,
+    "latitude": 45.46,
+    "loc_x": 295000.1,
+    "loc_y": 5040000.2
+   },
+   {
+    "_id": 5,
+    "no_demande": "3003456793",
+    "id_permis": "3000005",
+    "date_debut": "2026-08-01T00:00:00",
+    "date_emission": "2026-08-30T00:00:00",
+    "emplacement": "1250 rue Exemple",
+    "arrondissement": "Ville-Marie",
+    "code_type_base_demande": "TR",
+    "description_type_demande": "Transformation combinee",
+    "description_type_batiment": "Commercial",
+    "description_categorie_batiment": "Bureaux",
+    "nature_travaux": "AMENAGEMENT DU 3E ETAGE",
+    "nb_logements": null,
+    "longitude": -73.5673,
+    "latitude": 45.5017,
+    "loc_x": 295000.1,
+    "loc_y": 5040000.2
+   },
+   {
+    "_id": 6,
+    "no_demande": "3003456700",
+    "id_permis": "3000006",
+    "date_debut": "2026-05-01T00:00:00",
+    "date_emission": "2026-05-01T00:00:00",
+    "emplacement": "999 rue Ancienne",
+    "arrondissement": "Lachine",
+    "code_type_base_demande": "CO",
+    "description_type_demande": "Construction",
+    "description_type_batiment": "Industriel",
+    "description_categorie_batiment": "Entrepot",
+    "nature_travaux": "CONSTRUCTION D'UN ENTREPOT",
+    "nb_logements": null,
+    "longitude": -73.68,
+    "latitude": 45.44,
+    "loc_x": 295000.1,
+    "loc_y": 5040000.2
+   }
+  ],
+  "fields": [
+   {
+    "id": "_id",
+    "type": "int"
+   },
+   {
+    "id": "no_demande",
+    "type": "text"
+   },
+   {
+    "id": "id_permis",
+    "type": "text"
+   },
+   {
+    "id": "date_debut",
+    "type": "timestamp"
+   },
+   {
+    "id": "date_emission",
+    "type": "timestamp"
+   },
+   {
+    "id": "emplacement",
+    "type": "text"
+   },
+   {
+    "id": "arrondissement",
+    "type": "text"
+   },
+   {
+    "id": "code_type_base_demande",
+    "type": "text"
+   },
+   {
+    "id": "description_type_demande",
+    "type": "text"
+   },
+   {
+    "id": "description_type_batiment",
+    "type": "text"
+   },
+   {
+    "id": "description_categorie_batiment",
+    "type": "text"
+   },
+   {
+    "id": "nature_travaux",
+    "type": "text"
+   },
+   {
+    "id": "nb_logements",
+    "type": "numeric"
+   },
+   {
+    "id": "longitude",
+    "type": "numeric"
+   },
+   {
+    "id": "latitude",
+    "type": "numeric"
+   },
+   {
+    "id": "loc_x",
+    "type": "numeric"
+   },
+   {
+    "id": "loc_y",
+    "type": "numeric"
+   }
+  ],
+  "sort": "date_emission desc",
+  "_links": {
+   "start": "/api/3/action/datastore_search?resource_id=5232a72d-235a-48eb-ae20-bb9d501300ad&limit=1000&sort=date_emission+desc",
+   "next": "/api/3/action/datastore_search?resource_id=5232a72d-235a-48eb-ae20-bb9d501300ad&limit=1000&sort=date_emission+desc&offset=1000"
+  },
+  "total": 560309
+ }
+}

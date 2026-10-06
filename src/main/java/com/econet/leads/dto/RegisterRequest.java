@@ -3,6 +3,7 @@ package com.econet.leads.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import com.econet.leads.model.User;
 import lombok.Data;
 
 @Data
@@ -19,4 +20,7 @@ public class RegisterRequest {
     @NotBlank(message = "Password is required")
     @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
+
+    /** Optional role for the new account (ADMIN, USER or VIEWER); defaults to USER. */
+    private User.UserRole role;
 }

@@ -6,7 +6,6 @@ import com.econet.leads.repository.ScraperJobRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -27,8 +26,10 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/scraper-jobs")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*")
 public class ScraperJobController {
+
+    private static final java.util.Set<String> SORTABLE_FIELDS =
+            java.util.Set.of("createdAt", "startedAt", "completedAt", "status", "jobType");
 
     private final ScraperJobRepository scraperJobRepository;
 
@@ -46,22 +47,13 @@ public class ScraperJobController {
                 ? Sort.Direction.ASC
                 : Sort.Direction.DESC;
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+        if (!SORTABLE_FIELDS.contains(sortBy)) {
+            throw new IllegalArgumentException("sortBy must be one of " + SORTABLE_FIELDS);
+        }
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200), Sort.by(direction, sortBy));
 
-        // Fetch all jobs with source eagerly loaded
-        List<ScraperJob> allJobs = scraperJobRepository.findAllWithSource();
-
-        // Convert to DTOs
-        List<ScraperJobDTO> dtos = allJobs.stream()
-                .map(ScraperJobDTO::fromEntity)
-                .collect(Collectors.toList());
-
-        // Manual pagination
-        int start = (int) pageable.getOffset();
-        int end = Math.min((start + pageable.getPageSize()), dtos.size());
-        List<ScraperJobDTO> pageContent = dtos.subList(start, end);
-
-        Page<ScraperJobDTO> result = new PageImpl<>(pageContent, pageable, dtos.size());
+        Page<ScraperJobDTO> result = scraperJobRepository.findAllWithSource(pageable)
+                .map(ScraperJobDTO::fromEntity);
 
         return ResponseEntity.ok(result);
     }
@@ -158,25 +150,13 @@ public class ScraperJobController {
         stats.put("total", scraperJobRepository.count());
 
         // Recent jobs (last 24 hours)
-        LocalDateTime since24h = LocalDateTime.now().minusHours(24);
-        List<ScraperJob> recent24h = scraperJobRepository.findRecentJobs(since24h);
-        stats.put("last24Hours", recent24h.size());
+        stats.put("last24Hours", scraperJobRepository.countByCreatedAtGreaterThanEqual(LocalDateTime.now().minusHours(24)));
 
-        // Calculate total records processed
-        List<ScraperJob> completedJobs = scraperJobRepository.findByStatus(ScraperJob.JobStatus.COMPLETED);
-        int totalRecordsProcessed = completedJobs.stream()
-                .mapToInt(job -> job.getRecordsProcessed() != null ? job.getRecordsProcessed() : 0)
-                .sum();
-        int totalRecordsAdded = completedJobs.stream()
-                .mapToInt(job -> job.getRecordsAdded() != null ? job.getRecordsAdded() : 0)
-                .sum();
-        int totalRecordsUpdated = completedJobs.stream()
-                .mapToInt(job -> job.getRecordsUpdated() != null ? job.getRecordsUpdated() : 0)
-                .sum();
-
-        stats.put("totalRecordsProcessed", totalRecordsProcessed);
-        stats.put("totalRecordsAdded", totalRecordsAdded);
-        stats.put("totalRecordsUpdated", totalRecordsUpdated);
+        // Total records over completed jobs (aggregated in the database)
+        Object[] totals = scraperJobRepository.sumCompletedRecordCounts().get(0);
+        stats.put("totalRecordsProcessed", ((Number) totals[0]).longValue());
+        stats.put("totalRecordsAdded", ((Number) totals[1]).longValue());
+        stats.put("totalRecordsUpdated", ((Number) totals[2]).longValue());
 
         return ResponseEntity.ok(stats);
     }

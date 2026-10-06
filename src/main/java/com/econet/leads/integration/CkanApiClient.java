@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -21,7 +22,21 @@ import java.util.Map;
 @Slf4j
 public class CkanApiClient {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = createRestTemplate();
+
+    private static RestTemplate createRestTemplate() {
+        // Without timeouts a stalled open-data portal would block an import thread forever
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(15_000);
+        factory.setReadTimeout(120_000);
+        RestTemplate template = new RestTemplate(factory);
+        // Some portals (donnees.montreal.ca) answer 403 to requests without a User-Agent
+        template.getInterceptors().add((request, body, execution) -> {
+            request.getHeaders().set("User-Agent", "EconetLeads/1.0 (+lead import)");
+            return execution.execute(request, body);
+        });
+        return template;
+    }
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -32,6 +47,8 @@ public class CkanApiClient {
      * @param limit Number of records to fetch
      * @param offset Offset for pagination
      * @return List of records as maps
+     * @throws CkanApiException if the request fails or the API reports success=false. (This used to
+     *         return an empty list, which made a network failure look like a successful, empty import.)
      */
     public List<Map<String, Object>> fetchDatastoreRecords(
             String baseUrl,
@@ -68,13 +85,91 @@ public class CkanApiClient {
                 log.info("Successfully fetched {} records", result.size());
                 return result;
             } else {
-                log.error("CKAN API returned success=false");
-                return List.of();
+                throw new CkanApiException("CKAN API returned success=false for resource " + resourceId
+                        + ": " + root.path("error").toString());
             }
 
+        } catch (CkanApiException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("Error fetching CKAN data: {}", e.getMessage(), e);
-            return List.of();
+            throw new CkanApiException("Error fetching CKAN data from " + baseUrl + " (resource " + resourceId
+                    + ", offset " + offset + "): " + e.getMessage(), e);
+        }
+    }
+
+    /** One page of datastore_search: column names (from result.fields), records and the total count. */
+    public record DatastorePage(List<String> fields, List<Map<String, Object>> records, long total) {
+    }
+
+    /**
+     * datastore_search page with an optional sort (e.g. "date_emission desc").
+     *
+     * @throws CkanApiException with URL/reason when the request fails or success=false
+     */
+    public DatastorePage fetchDatastorePage(String baseUrl, String resourceId, int limit, int offset, String sort) {
+        String url = null;
+        try {
+            UriComponentsBuilder b = UriComponentsBuilder.fromHttpUrl(baseUrl + "datastore_search")
+                    .queryParam("resource_id", resourceId)
+                    .queryParam("limit", limit)
+                    .queryParam("offset", offset);
+            if (sort != null && !sort.isBlank()) {
+                b.queryParam("sort", sort);
+            }
+            url = b.build().encode().toUriString();
+            log.info("Fetching CKAN page: {}", url);
+            return parseDatastorePage(restTemplate.getForObject(java.net.URI.create(url), String.class), resourceId);
+        } catch (CkanApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CkanApiException("Error fetching CKAN data from " + (url != null ? url : baseUrl) + ": " + e.getMessage(), e);
+        }
+    }
+
+    /** Parses a datastore_search response body (also used by tests with fixture files). */
+    public DatastorePage parseDatastorePage(String body, String resourceId) throws java.io.IOException {
+        JsonNode root = objectMapper.readTree(body);
+        if (!root.path("success").asBoolean(false)) {
+            throw new CkanApiException("CKAN API returned success=false for resource " + resourceId + ": " + root.path("error"));
+        }
+        JsonNode result = root.path("result");
+        List<String> fields = new ArrayList<>();
+        result.path("fields").forEach(f -> fields.add(f.path("id").asText()));
+        List<Map<String, Object>> records = new ArrayList<>();
+        for (JsonNode record : result.path("records")) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = objectMapper.convertValue(record, Map.class);
+            records.add(map);
+        }
+        return new DatastorePage(fields, records, result.path("total").asLong(-1));
+    }
+
+    /** CKAN action call returning the "result" node (package_show, resource_show...). */
+    public JsonNode action(String baseUrl, String action, Map<String, String> params) {
+        String url = null;
+        try {
+            UriComponentsBuilder b = UriComponentsBuilder.fromHttpUrl(baseUrl + action);
+            params.forEach(b::queryParam);
+            url = b.build().encode().toUriString();
+            JsonNode root = objectMapper.readTree(restTemplate.getForObject(java.net.URI.create(url), String.class));
+            if (!root.path("success").asBoolean(false)) {
+                throw new CkanApiException("CKAN " + action + " returned success=false: " + root.path("error"));
+            }
+            return root.path("result");
+        } catch (CkanApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CkanApiException("Error calling CKAN " + (url != null ? url : baseUrl + action) + ": " + e.getMessage(), e);
+        }
+    }
+
+    public static class CkanApiException extends RuntimeException {
+        public CkanApiException(String message) {
+            super(message);
+        }
+
+        public CkanApiException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 
@@ -116,10 +211,15 @@ public class CkanApiClient {
             } else {
                 allRecords.addAll(batch);
                 offset += batchSize;
+                // A short page is the last page; avoids one extra request
+                hasMore = batch.size() >= batchSize;
 
                 log.info("Fetched {} total records so far...", allRecords.size());
 
                 // Sleep to avoid overwhelming the API
+                if (!hasMore) {
+                    break;
+                }
                 try {
                     Thread.sleep(500);
                 } catch (InterruptedException e) {

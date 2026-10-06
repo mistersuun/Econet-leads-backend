@@ -1,0 +1,9 @@
+﻿NEQ,NO_SUF_ETAB,IND_ETAB_PRINC,IND_SALON_BRONZ,IND_VENTE_TABAC_DETL,IND_DISP,LIGN1_ADR,LIGN2_ADR,LIGN3_ADR,LIGN4_ADR,COD_ACT_ECON,DESC_ACT_ECON_ETAB,NO_ACT_ECON_ETAB,COD_ACT_ECON2,DESC_ACT_ECON_ETAB2,NO_ACT_ECON_ETAB2,NOM_ETAB
+1160000001,1,O,N,N,O,"1000, rue Exemple",Montréal (Québec),,H3A 1B2,8621,Cabinets de dentistes,1,,,,CLINIQUE DENTAIRE EXEMPLE
+1160000002,1,N,N,N,O,50 rue Fictive,Québec (Québec),,G1R 2B5,7761,Bureaux d'avocats,1,,,,
+1160000002,2,O,N,N,O,2500 boul. Modèle,Laval (Québec),,H7T 2Y5,7761,Bureaux d'avocats,1,,,,
+1160000003,1,O,N,N,O,12 rue du Test,Québec (Québec),,G1K 3A1,9211,Restaurants,1,,,,
+1160000004,1,O,N,N,O,77 rue Radiée,SAINT-LAURENT (QUÉBEC),,H4N 1A1,9211,Restaurants,1,,,,
+1160000005,1,O,N,N,O,3000 avenue Copro,Brossard (Québec),,J4Y 0A1,,,,,,,
+1160000006,1,O,N,N,O,400 rue Usine,Montréal (Québec),,H1B 1C1,2611,Fabrication de meubles,1,,,,
+1160000007,1,O,N,N,O,200 boul. Exemple,bureau 300,Longueuil (Québec),J4K 2T5,8642,Garderies,1,,,,

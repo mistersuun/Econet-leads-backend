@@ -3,7 +3,20 @@ package com.econet.leads.controller;
 import com.econet.leads.dto.BusinessCreateRequest;
 import com.econet.leads.dto.BusinessDTO;
 import com.econet.leads.dto.BusinessFilterDTO;
+import com.econet.leads.dto.BusinessFilterOptionsDTO;
 import com.econet.leads.dto.BusinessUpdateRequest;
+import com.econet.leads.dto.LeadStatusUpdateRequest;
+import com.econet.leads.dto.PhoneUpdateRequest;
+import com.econet.leads.exception.ApiException;
+import com.econet.leads.mapper.DtoMapper;
+import com.econet.leads.model.User;
+import com.econet.leads.repository.UserRepository;
+import com.econet.leads.security.AuthenticationFacade;
+import com.econet.leads.service.LeadService;
+import com.opencsv.CSVWriter;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpHeaders;
 import com.econet.leads.model.Business;
 import com.econet.leads.model.BusinessCategory;
 import com.econet.leads.repository.BusinessCategoryRepository;
@@ -21,6 +34,16 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 
 @RestController
@@ -29,11 +52,22 @@ import java.util.UUID;
 @Tag(name = "Business", description = "Business/Prospect management endpoints")
 public class BusinessController {
 
+    private static final DateTimeFormatter CSV_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
     private final BusinessService businessService;
     private final BusinessCategoryRepository businessCategoryRepository;
+    private final UserRepository userRepository;
+    private final LeadService leadService;
+    private final AuthenticationFacade authenticationFacade;
+    private final Clock clock;
+
+    static final Set<String> SORTABLE_FIELDS = Set.of(
+            "createdAt", "businessName", "dataQualityScore", "lastContactedAt", "nextFollowUpAt", "addressCity");
+    static final int MAX_PAGE_SIZE = 500;
+    static final int EXPORT_BATCH_SIZE = 1000;
 
     @GetMapping
-    @Operation(summary = "Get all businesses", description = "Get paginated list of businesses with optional filters")
+    @Operation(summary = "Get all businesses", description = "Paginated list of leads with optional filters (q, leadStatus, businessType, city, dataSource, hasPhone, assignedTo, minQualityScore, followUpDue)")
     public ResponseEntity<Page<BusinessDTO>> getAllBusinesses(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
@@ -41,32 +75,77 @@ public class BusinessController {
             @RequestParam(defaultValue = "DESC") String sortDirection,
             @ModelAttribute BusinessFilterDTO filters) {
 
-        Sort sort = sortDirection.equalsIgnoreCase("ASC")
-                ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
-        Pageable pageable = PageRequest.of(page, size, sort);
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE),
+                buildSort(sortBy, sortDirection));
+        return ResponseEntity.ok(businessService.findDtos(buildSpecification(filters), pageable));
+    }
 
-        Page<Business> businesses;
-        if (hasFilters(filters)) {
-            businesses = businessService.findWithFilters(
-                    BusinessSpecification.withFilters(filters),
-                    pageable
-            );
-        } else {
-            businesses = businessService.findAll(pageable);
+    @GetMapping("/filters")
+    @Operation(summary = "Filter options", description = "Distinct business types, cities (top 200 by count) and data sources, sorted")
+    public ResponseEntity<BusinessFilterOptionsDTO> getFilterOptions() {
+        return ResponseEntity.ok(businessService.getFilterOptions());
+    }
+
+    @GetMapping(value = "/export.csv", produces = "text/csv")
+    @Operation(summary = "Export leads as CSV", description = "Same filters as the list; UTF-8 with BOM so Excel shows accents correctly")
+    public void exportCsv(@RequestParam(defaultValue = "createdAt") String sortBy,
+                          @RequestParam(defaultValue = "DESC") String sortDirection,
+                          @ModelAttribute BusinessFilterDTO filters,
+                          HttpServletResponse response) throws IOException {
+        Specification<Business> spec = buildSpecification(filters);
+        Sort sort = buildSort(sortBy, sortDirection);
+
+        String filename = "leads-" + LocalDate.now(clock) + ".csv";
+        response.setContentType("text/csv; charset=UTF-8");
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
+
+        OutputStream out = response.getOutputStream();
+        out.write(new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF}); // UTF-8 BOM for Excel
+        try (CSVWriter writer = new CSVWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {
+            writer.writeNext(new String[]{"name", "type", "phone", "email", "website", "street", "city",
+                    "postal_code", "status", "last_contacted", "next_follow_up", "quality", "source"}, false);
+            int pageIndex = 0;
+            Page<BusinessDTO> batch;
+            do {
+                batch = businessService.findDtos(spec, PageRequest.of(pageIndex++, EXPORT_BATCH_SIZE, sort));
+                for (BusinessDTO b : batch.getContent()) {
+                    writer.writeNext(new String[]{
+                            b.getBusinessName(), b.getBusinessType(), b.getPhone(), b.getEmail(), b.getWebsite(),
+                            b.getAddressStreet(), b.getAddressCity(), b.getPostalCode(),
+                            b.getLeadStatus() != null ? b.getLeadStatus().name() : null,
+                            b.getLastContactedAt() != null ? b.getLastContactedAt().format(CSV_DATE_TIME) : null,
+                            b.getNextFollowUpAt() != null ? b.getNextFollowUpAt().format(CSV_DATE_TIME) : null,
+                            b.getDataQualityScore() != null ? b.getDataQualityScore().toString() : null,
+                            b.getDataSource()
+                    }, true);
+                }
+                writer.flush();
+            } while (batch.hasNext());
         }
-
-        Page<BusinessDTO> dtoPage = businesses.map(this::convertToDTO);
-        return ResponseEntity.ok(dtoPage);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get business by ID", description = "Get detailed information about a specific business")
     public ResponseEntity<BusinessDTO> getBusinessById(@PathVariable UUID id) {
-        return businessService.findById(id)
-                .map(this::convertToDTO)
+        return businessService.findDtoById(id)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> ApiException.notFound("Business not found with id: " + id));
+    }
+
+    @PatchMapping("/{id}/status")
+    @Operation(summary = "Change lead status", description = "Set the pipeline status; recorded in the lead history with the optional note")
+    public ResponseEntity<BusinessDTO> updateStatus(@PathVariable UUID id,
+                                                    @Valid @RequestBody LeadStatusUpdateRequest request) {
+        User user = authenticationFacade.getCurrentUser();
+        return ResponseEntity.ok(leadService.updateStatus(id, request, user.getId()));
+    }
+
+    @PatchMapping("/{id}/phone")
+    @Operation(summary = "Add a phone number", description = "Sets phone + normalized phone (10 digits NANP, optional +1; 400 otherwise), recomputes the quality score and records a 'Numéro ajouté' note. USER/ADMIN.")
+    public ResponseEntity<BusinessDTO> updatePhone(@PathVariable UUID id,
+                                                   @Valid @RequestBody PhoneUpdateRequest request) {
+        User user = authenticationFacade.getCurrentUser();
+        return ResponseEntity.ok(leadService.updatePhone(id, request.getPhone(), user.getId()));
     }
 
     @GetMapping("/search")
@@ -92,7 +171,7 @@ public class BusinessController {
         // Fetch category if provided
         if (request.getCategoryId() != null) {
             BusinessCategory category = businessCategoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new RuntimeException("Category not found with id: " + request.getCategoryId()));
+                .orElseThrow(() -> ApiException.badRequest("Category not found with id: " + request.getCategoryId()));
             business.setCategory(category);
         }
 
@@ -126,7 +205,7 @@ public class BusinessController {
         // Fetch category if provided
         if (request.getCategoryId() != null) {
             BusinessCategory category = businessCategoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new RuntimeException("Category not found with id: " + request.getCategoryId()));
+                .orElseThrow(() -> ApiException.badRequest("Category not found with id: " + request.getCategoryId()));
             business.setCategory(category);
         }
 
@@ -139,6 +218,11 @@ public class BusinessController {
         business.setWebsite(request.getWebsite());
         business.setLatitude(request.getLatitude());
         business.setLongitude(request.getLongitude());
+        business.setEstimatedValue(request.getEstimatedValue());
+        if (request.getAssignedToId() != null) {
+            business.setAssignedTo(userRepository.findById(request.getAssignedToId())
+                    .orElseThrow(() -> ApiException.badRequest("User not found: " + request.getAssignedToId())));
+        }
 
         Business updated = businessService.update(id, business);
         return ResponseEntity.ok(convertToDTO(updated));
@@ -165,39 +249,39 @@ public class BusinessController {
     }
 
     private BusinessDTO convertToDTO(Business business) {
-        BusinessDTO dto = new BusinessDTO();
-        dto.setId(business.getId());
-        dto.setBusinessName(business.getBusinessName());
-        dto.setBusinessType(business.getBusinessType());
-        dto.setCategoryId(business.getCategory() != null ? business.getCategory().getId() : null);
-        dto.setAddressStreet(business.getAddressStreet());
-        dto.setAddressCity(business.getAddressCity());
-        dto.setAddressProvince(business.getAddressProvince());
-        dto.setPostalCode(business.getPostalCode());
-        dto.setPhone(business.getPhone());
-        dto.setEmail(business.getEmail());
-        dto.setWebsite(business.getWebsite());
-        dto.setLatitude(business.getLatitude());
-        dto.setLongitude(business.getLongitude());
-        dto.setDataSource(business.getDataSource());
-        dto.setSourceUrl(business.getSourceUrl());
-        dto.setCreatedAt(business.getCreatedAt());
-        dto.setUpdatedAt(business.getUpdatedAt());
-        dto.setLastVerified(business.getLastVerified());
-        dto.setDataQualityScore(business.getDataQualityScore());
-        dto.setFullAddress(business.getFullAddress());
-        return dto;
+        return DtoMapper.toDto(business);
     }
 
-    private boolean hasFilters(BusinessFilterDTO filters) {
-        return filters.getBusinessType() != null ||
-               filters.getCity() != null ||
-               filters.getProvince() != null ||
-               filters.getDataSource() != null ||
-               filters.getSearchTerm() != null ||
-               filters.getMinQualityScore() != null ||
-               filters.getMaxQualityScore() != null ||
-               (filters.getStale() != null && filters.getStale()) ||
-               filters.getContactStatus() != null;
+    private Specification<Business> buildSpecification(BusinessFilterDTO filters) {
+        String assignedTo = filters.getAssignedTo();
+        filters.setAssignedToUserId(null);
+        if (assignedTo != null && !assignedTo.isBlank()) {
+            if ("me".equalsIgnoreCase(assignedTo.trim())) {
+                filters.setAssignedToUserId(authenticationFacade.getCurrentUser().getId());
+            } else {
+                try {
+                    filters.setAssignedToUserId(UUID.fromString(assignedTo.trim()));
+                } catch (IllegalArgumentException e) {
+                    throw ApiException.badRequest("assignedTo must be a user id or 'me'");
+                }
+            }
+        }
+        return BusinessSpecification.withFilters(filters, LocalDateTime.now(clock));
+    }
+
+    static Sort buildSort(String sortBy, String sortDirection) {
+        if (!SORTABLE_FIELDS.contains(sortBy)) {
+            throw ApiException.badRequest("sortBy must be one of " + new TreeSet<>(SORTABLE_FIELDS));
+        }
+        Sort.Direction direction;
+        if ("ASC".equalsIgnoreCase(sortDirection)) {
+            direction = Sort.Direction.ASC;
+        } else if ("DESC".equalsIgnoreCase(sortDirection)) {
+            direction = Sort.Direction.DESC;
+        } else {
+            throw ApiException.badRequest("sortDirection must be ASC or DESC");
+        }
+        // id as tie-breaker keeps pagination stable
+        return Sort.by(direction, sortBy).and(Sort.by(Sort.Direction.ASC, "id"));
     }
 }

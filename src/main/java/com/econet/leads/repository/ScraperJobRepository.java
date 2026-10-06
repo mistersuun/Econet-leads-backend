@@ -15,9 +15,19 @@ import java.util.UUID;
 @Repository
 public interface ScraperJobRepository extends JpaRepository<ScraperJob, UUID> {
 
-    // Find all with source eagerly fetched (for pagination)
-    @Query("SELECT j FROM ScraperJob j LEFT JOIN FETCH j.source")
-    List<ScraperJob> findAllWithSource();
+    // Real paged query with the source eagerly fetched (sorting comes from the Pageable)
+    @Query(value = "SELECT j FROM ScraperJob j LEFT JOIN FETCH j.source",
+           countQuery = "SELECT COUNT(j) FROM ScraperJob j")
+    Page<ScraperJob> findAllWithSource(Pageable pageable);
+
+    boolean existsBySourceIdAndStatusIn(UUID sourceId, java.util.Collection<ScraperJob.JobStatus> statuses);
+
+    long countByCreatedAtGreaterThanEqual(LocalDateTime since);
+
+    // Totals over completed jobs: [processed, added, updated]
+    @Query("SELECT COALESCE(SUM(j.recordsProcessed), 0), COALESCE(SUM(j.recordsAdded), 0), COALESCE(SUM(j.recordsUpdated), 0) "
+         + "FROM ScraperJob j WHERE j.status = com.econet.leads.model.ScraperJob.JobStatus.COMPLETED")
+    List<Object[]> sumCompletedRecordCounts();
 
     // Find by ID with source eagerly fetched
     @Query("SELECT j FROM ScraperJob j LEFT JOIN FETCH j.source WHERE j.id = :id")

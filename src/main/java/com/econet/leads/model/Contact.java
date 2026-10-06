@@ -66,12 +66,25 @@ public class Contact {
     public enum ContactType {
         APPEL,
         EMAIL,
-        VISITE
+        VISITE,
+        /** Pipeline status change / free note recorded by the CRM (not a call). */
+        NOTE
     }
 
     public enum ContactOutcome {
+        // Legacy values (kept readable for existing rows)
         CONTRAT,
         REFUS,
-        EN_ATTENTE
+        EN_ATTENTE,
+        // CallOutcome values
+        NO_ANSWER,
+        VOICEMAIL,
+        CALLBACK,
+        INTERESTED,
+        NOT_INTERESTED,
+        QUOTE_SENT,
+        WON,
+        WRONG_NUMBER,
+        DO_NOT_CALL
     }
 }

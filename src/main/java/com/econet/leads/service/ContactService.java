@@ -1,7 +1,9 @@
 package com.econet.leads.service;
 
 import com.econet.leads.model.Business;
+import com.econet.leads.exception.ApiException;
 import com.econet.leads.model.Contact;
+import com.econet.leads.model.LeadStatus;
 import com.econet.leads.model.User;
 import com.econet.leads.repository.BusinessRepository;
 import com.econet.leads.repository.ContactRepository;
@@ -67,11 +69,11 @@ public class ContactService {
     public Contact create(Contact contact, UUID businessId, UUID userId) {
         // Validate business exists
         Business business = businessRepository.findById(businessId)
-                .orElseThrow(() -> new RuntimeException("Business not found with id: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Business not found with id: " + businessId));
 
         // Validate user exists
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+                .orElseThrow(() -> ApiException.notFound("User not found with id: " + userId));
 
         contact.setBusiness(business);
         contact.setUser(user);
@@ -81,6 +83,20 @@ public class ContactService {
         }
 
         Contact saved = contactRepository.save(contact);
+
+        // Keep the lead's denormalized pipeline counters in sync for contacts logged through the
+        // generic contacts API (calls logged via /api/leads/{id}/calls do this in LeadService).
+        if (contact.getContactType() != Contact.ContactType.NOTE) {
+            business.setContactCount((business.getContactCount() != null ? business.getContactCount() : 0) + 1);
+            if (business.getLastContactedAt() == null || contact.getContactDate().isAfter(business.getLastContactedAt())) {
+                business.setLastContactedAt(contact.getContactDate());
+            }
+            if (business.getLeadStatus() == LeadStatus.NEW) {
+                business.setLeadStatus(LeadStatus.CONTACTED);
+            }
+            businessRepository.save(business);
+        }
+
         // Initialize associations to avoid LazyInitializationException
         // Access them within transaction to trigger lazy loading
         saved.getBusiness().getBusinessName();
@@ -96,7 +112,7 @@ public class ContactService {
     public Contact update(UUID id, Contact updatedContact) {
         // Fetch with associations to avoid LazyInitializationException
         Contact existing = contactRepository.findByIdWithAssociations(id)
-                .orElseThrow(() -> new RuntimeException("Contact not found with id: " + id));
+                .orElseThrow(() -> ApiException.notFound("Contact not found with id: " + id));
 
         // Only update fields that are provided (non-null)
         if (updatedContact.getContactDate() != null) {
@@ -127,7 +143,7 @@ public class ContactService {
     @Transactional
     public void delete(UUID id) {
         if (!contactRepository.existsById(id)) {
-            throw new RuntimeException("Contact not found with id: " + id);
+            throw ApiException.notFound("Contact not found with id: " + id);
         }
         contactRepository.deleteById(id);
     }

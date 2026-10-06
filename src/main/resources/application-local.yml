@@ -25,9 +25,17 @@ server:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:dev-secret-key-change-in-production-min-256-bits-for-hs256-algorithm}
-    refresh-secret: ${JWT_REFRESH_SECRET:dev-refresh-secret-key-change-in-production-min-256-bits-for-hs256-algorithm}
+    # Local-development-only defaults. Every other profile must set JWT_SECRET / JWT_REFRESH_SECRET.
+    secret: ${JWT_SECRET:local-dev-only-access-secret-not-for-production-0123456789}
+    refresh-secret: ${JWT_REFRESH_SECRET:local-dev-only-refresh-secret-not-for-production-0123456789}
+  admin:
+    # Local convenience: the bootstrap admin gets admin123 unless ADMIN_INITIAL_PASSWORD is set
+    initial-password: ${ADMIN_INITIAL_PASSWORD:admin123}
+  seed:
+    # Creates ~60 DEMO businesses with call history on startup (only in the local profile, only if none exist)
+    demo-data: ${SEED_DEMO_DATA:true}
   scraper:
+    mock-pages-jaunes: true  # mock source with invented businesses; never enable in prod
     headless: false  # Show browser for debugging
 
 logging:
