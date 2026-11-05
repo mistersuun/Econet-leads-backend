@@ -63,6 +63,12 @@ public class SecurityConfig {
                         // Account creation is restricted to administrators
                         .requestMatchers("/api/auth/register").hasRole("ADMIN")
 
+                        // SSE stream: authenticated like every GET; the token may come as ?token= (see JwtAuthenticationFilter)
+                        .requestMatchers(HttpMethod.GET, "/api/events").authenticated()
+
+                        // Releasing one's own claim is a caller action, not an admin delete
+                        .requestMatchers(HttpMethod.DELETE, "/api/leads/*/claim").hasAnyRole("ADMIN", "USER")
+
                         // Admin-only endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/**").hasRole("ADMIN")

@@ -21,6 +21,13 @@ import java.io.IOException;
 @Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    /**
+     * The one path that may carry the access token as a query parameter: the SSE stream, because
+     * EventSource cannot set an Authorization header. The value is never logged.
+     */
+    static final String SSE_PATH = "/api/events";
+    static final String SSE_TOKEN_PARAM = "token";
+
     private final JwtTokenProvider tokenProvider;
     private final UserDetailsServiceImpl userDetailsService;
 
@@ -64,6 +71,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
+        if (isSsePath(request)) {
+            String token = request.getParameter(SSE_TOKEN_PARAM);
+            if (StringUtils.hasText(token)) {
+                return token;
+            }
+        }
         return null;
+    }
+
+    private static boolean isSsePath(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath)) {
+            uri = uri.substring(contextPath.length());
+        }
+        return SSE_PATH.equals(uri) && "GET".equalsIgnoreCase(request.getMethod());
     }
 }
