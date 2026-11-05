@@ -42,4 +42,6 @@ logging:
   level:
     com.econet.leads: DEBUG
     org.springframework.security: DEBUG
+    # FilterChainProxy logs the full request line (query string included): keep the SSE token out of the log
+    org.springframework.security.web.FilterChainProxy: INFO
     org.hibernate.SQL: DEBUG

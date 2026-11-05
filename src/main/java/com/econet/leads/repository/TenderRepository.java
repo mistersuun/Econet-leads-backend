@@ -23,6 +23,13 @@ public interface TenderRepository extends JpaRepository<Tender, UUID>, JpaSpecif
                              @Param("to") LocalDateTime to,
                              @Param("excluded") Collection<TenderStatus> excluded);
 
+    /** Tenders in the given statuses closing in [from, to] (notifications), soonest first. */
+    @Query("SELECT t FROM Tender t WHERE t.closingAt >= :from AND t.closingAt <= :to AND t.status IN :statuses"
+            + " ORDER BY t.closingAt ASC, t.id ASC")
+    java.util.List<com.econet.leads.model.Tender> findClosingBetween(@Param("from") LocalDateTime from,
+                                                                       @Param("to") LocalDateTime to,
+                                                                       @Param("statuses") Collection<TenderStatus> statuses);
+
     @Query("SELECT COUNT(t) FROM Tender t WHERE t.closingAt >= :now AND t.status NOT IN :excluded"
             + " AND (t.noticeType IS NULL OR t.noticeType <> 'AWARD')")
     long countOpen(@Param("now") LocalDateTime now, @Param("excluded") Collection<TenderStatus> excluded);

@@ -102,6 +102,29 @@ app:
   scheduler:
     enabled: true
 
+  sse:
+    heartbeat-ms: 25000   # comment line keeping the event stream alive
+    timeout-ms: 3600000   # emitter lifetime; EventSource reconnects transparently (Last-Event-ID replay)
+
+  claims:
+    ttl-minutes: 10       # a claimed lead is released after this unless refreshed
+    sweep-ms: 30000
+
+  mail:
+    # Outgoing SMTP for follow-up emails. Nothing is sent unless SMTP_HOST is set
+    # (GET /api/email/status reports configured: false and sends return 503).
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    from: ${MAIL_FROM:}            # defaults to SMTP_USERNAME
+    from-name: ${MAIL_FROM_NAME:EcoNet Propreté}
+    starttls: ${SMTP_STARTTLS:true}
+    rate-limit-per-hour: 20        # per user
+
+  company:
+    name: ${COMPANY_NAME:EcoNet Propreté}
+
   geocoding:
     enabled: true
     provider: openstreetmap  # or 'google'

@@ -123,6 +123,15 @@ public class Business {
     @Column(name = "source_details", columnDefinition = "jsonb")
     private Map<String, String> sourceDetails;
 
+    /**
+     * Structured facts captured during calls (V9): decisionMaker, role, directPhone, email,
+     * currentProvider, contractEndsAt, sizeSqft, employees, frequencyWanted, painPoints, language,
+     * bestTimeToCall, notes. Validated and merged by {@link com.econet.leads.service.QualificationService}.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "qualification", columnDefinition = "jsonb")
+    private Map<String, Object> qualification;
+
     // Helper method to get full address
     public String getFullAddress() {
         StringBuilder sb = new StringBuilder();
