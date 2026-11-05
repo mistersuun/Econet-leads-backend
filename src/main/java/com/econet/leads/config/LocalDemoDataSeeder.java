@@ -266,7 +266,15 @@ public class LocalDemoDataSeeder implements CommandLineRunner {
         LocalDate day = today.minusDays(startOffset);
         for (int k = 0; k < outcomes.size(); k++) {
             day = nextWeekdayNotAfter(day, today);
-            LocalDateTime t = day.atTime(LocalTime.of(9 + random.nextInt(8), random.nextInt(60)));
+            // 8:00-17:59, weighted towards mid-morning and early afternoon so the best-hours heatmap has a shape
+            int hour = switch (random.nextInt(10)) {
+                case 0 -> 8;
+                case 1, 2, 3 -> 9 + random.nextInt(2);
+                case 4, 5 -> 11 + random.nextInt(2);
+                case 6, 7, 8 -> 13 + random.nextInt(3);
+                default -> 16 + random.nextInt(2);
+            };
+            LocalDateTime t = day.atTime(LocalTime.of(hour, random.nextInt(60)));
             if (t.isAfter(now)) {
                 t = now.minusMinutes(5L * (outcomes.size() - k));
             }
@@ -296,6 +304,9 @@ public class LocalDemoDataSeeder implements CommandLineRunner {
                 c.setContactPerson(CONTACT_PEOPLE[random.nextInt(CONTACT_PEOPLE.length)]);
             }
             c.setNotes(NOTES[random.nextInt(NOTES.length)]);
+            c.setDurationSeconds(CallOutcome.CONVERSATIONS.contains(outcome)
+                    ? 90 + random.nextInt(600)   // a real conversation: 1.5 to 11.5 minutes
+                    : 15 + random.nextInt(60));  // ringing / voicemail
             c.setNextActionDate(followUp);
             c.setNextAction(followUp != null ? "Rappel" : null);
             contactRepository.save(c);
@@ -309,7 +320,54 @@ public class LocalDemoDataSeeder implements CommandLineRunner {
         if (status == LeadStatus.INTERESTED || status == LeadStatus.QUOTE_SENT || status == LeadStatus.WON) {
             b.setEstimatedValue(BigDecimal.valueOf(1500 + 50L * random.nextInt(210)).setScale(2));
         }
+        if (outcomes.stream().anyMatch(CallOutcome.CONVERSATIONS::contains) && random.nextInt(4) > 0) {
+            b.setQualification(demoQualification(b, status, random, today));
+        }
         businessRepository.save(b);
+    }
+
+    private static final String[] PROVIDERS = {"none", "in-house", "Entretien Pro Plus", "Nettoyage Bélanger", "GSF Canada", "Services Ménagers Roy"};
+    private static final String[] PAIN_POINTS = {"qualité", "prix", "fiabilité", "produits", "horaire"};
+    private static final String[] BEST_TIMES = {"mardi AM", "jeudi PM", "lundi 9 h", "après 14 h", "vendredi AM"};
+
+    /** Qualification facts for a demo lead that had a conversation (~15 leads). */
+    private static java.util.Map<String, Object> demoQualification(Business b, LeadStatus status, Random random, LocalDate today) {
+        java.util.Map<String, Object> q = new java.util.LinkedHashMap<>();
+        String person = CONTACT_PEOPLE[random.nextInt(CONTACT_PEOPLE.length)];
+        q.put("decisionMaker", person);
+        q.put("role", switch (b.getBusinessType()) {
+            case "CPE" -> "Directrice";
+            case "Restaurant" -> "Propriétaire";
+            case "Clinique", "CHSLD" -> "Gestionnaire des services";
+            default -> "Responsable des opérations";
+        });
+        if (random.nextBoolean()) {
+            q.put("directPhone", b.getPhone());
+        }
+        if (b.getEmail() != null && random.nextInt(3) > 0) {
+            q.put("email", person.substring(person.indexOf(' ') + 1).toLowerCase() + "@" + b.getEmail().substring(b.getEmail().indexOf('@') + 1));
+        }
+        q.put("currentProvider", PROVIDERS[random.nextInt(PROVIDERS.length)]);
+        if (random.nextInt(3) > 0) {
+            q.put("contractEndsAt", today.plusMonths(1 + random.nextInt(11)).withDayOfMonth(1).minusDays(1).toString());
+        }
+        q.put("sizeSqft", 1500L + 500L * random.nextInt(16));
+        q.put("employees", 4L + random.nextInt(60));
+        q.put("frequencyWanted", new String[]{"weekly", "bi-weekly", "weekly", "monthly"}[random.nextInt(4)]);
+        java.util.List<String> points = new java.util.ArrayList<>();
+        for (int k = 0; k < 1 + random.nextInt(3); k++) {
+            String p = PAIN_POINTS[random.nextInt(PAIN_POINTS.length)];
+            if (!points.contains(p)) points.add(p);
+        }
+        q.put("painPoints", points);
+        q.put("language", random.nextInt(5) == 0 ? "en" : "fr");
+        q.put("bestTimeToCall", BEST_TIMES[random.nextInt(BEST_TIMES.length)]);
+        if (status == LeadStatus.LOST) {
+            q.put("notes", "Satisfaits du fournisseur actuel; rappeler à l'échéance du contrat.");
+        } else if (random.nextBoolean()) {
+            q.put("notes", "Veut une soumission pour " + (random.nextBoolean() ? "le soir après 18 h" : "la fin de semaine") + ".");
+        }
+        return q;
     }
 
     private User ensureUser(String username, User.UserRole role) {

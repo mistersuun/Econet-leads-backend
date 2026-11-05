@@ -13,6 +13,7 @@ import com.econet.leads.model.User;
 import com.econet.leads.repository.UserRepository;
 import com.econet.leads.security.AuthenticationFacade;
 import com.econet.leads.service.LeadService;
+import com.econet.leads.service.QualificationService;
 import com.opencsv.CSVWriter;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.data.jpa.domain.Specification;
@@ -42,6 +43,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -103,7 +105,8 @@ public class BusinessController {
         out.write(new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF}); // UTF-8 BOM for Excel
         try (CSVWriter writer = new CSVWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {
             writer.writeNext(new String[]{"name", "type", "phone", "email", "website", "street", "city",
-                    "postal_code", "status", "last_contacted", "next_follow_up", "quality", "source"}, false);
+                    "postal_code", "status", "last_contacted", "next_follow_up", "quality", "source",
+                    "decision_maker", "current_provider", "contract_ends_at", "employees"}, false);
             int pageIndex = 0;
             Page<BusinessDTO> batch;
             do {
@@ -116,7 +119,11 @@ public class BusinessController {
                             b.getLastContactedAt() != null ? b.getLastContactedAt().format(CSV_DATE_TIME) : null,
                             b.getNextFollowUpAt() != null ? b.getNextFollowUpAt().format(CSV_DATE_TIME) : null,
                             b.getDataQualityScore() != null ? b.getDataQualityScore().toString() : null,
-                            b.getDataSource()
+                            b.getDataSource(),
+                            QualificationService.text(b.getQualification(), "decisionMaker"),
+                            QualificationService.text(b.getQualification(), "currentProvider"),
+                            QualificationService.text(b.getQualification(), "contractEndsAt"),
+                            QualificationService.text(b.getQualification(), "employees")
                     }, true);
                 }
                 writer.flush();
@@ -138,6 +145,20 @@ public class BusinessController {
                                                     @Valid @RequestBody LeadStatusUpdateRequest request) {
         User user = authenticationFacade.getCurrentUser();
         return ResponseEntity.ok(leadService.updateStatus(id, request, user.getId()));
+    }
+
+    @GetMapping("/{id}/qualification")
+    @Operation(summary = "Qualification of a lead", description = "Structured facts captured during calls; {} when none")
+    public ResponseEntity<Map<String, Object>> getQualification(@PathVariable UUID id) {
+        return ResponseEntity.ok(leadService.getQualification(id));
+    }
+
+    @PatchMapping("/{id}/qualification")
+    @Operation(summary = "Merge qualification facts", description = "Partial update: keys present are set, null clears a key. USER/ADMIN.")
+    public ResponseEntity<Map<String, Object>> patchQualification(@PathVariable UUID id,
+                                                                  @RequestBody Map<String, Object> patch) {
+        User user = authenticationFacade.getCurrentUser();
+        return ResponseEntity.ok(leadService.patchQualification(id, patch, user.getId()));
     }
 
     @PatchMapping("/{id}/phone")

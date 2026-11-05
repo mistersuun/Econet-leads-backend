@@ -36,6 +36,7 @@ public class BusinessService {
 
     private final BusinessRepository businessRepository;
     private final DataQualityService dataQualityService;
+    private final PriorityScoreService priorityScoreService;
 
     @Transactional(readOnly = true)
     public Page<Business> findAll(Pageable pageable) {
@@ -54,12 +55,13 @@ public class BusinessService {
 
     @Transactional(readOnly = true)
     public Page<BusinessDTO> findDtos(Specification<Business> spec, Pageable pageable) {
-        return businessRepository.findAll(spec, pageable).map(DtoMapper::toDto);
+        java.util.Map<String, Double> rates = priorityScoreService.ratesByType();
+        return businessRepository.findAll(spec, pageable).map(b -> priorityScoreService.decorate(DtoMapper.toDto(b), rates));
     }
 
     @Transactional(readOnly = true)
     public Optional<BusinessDTO> findDtoById(UUID id) {
-        return businessRepository.findById(id).map(DtoMapper::toDto);
+        return businessRepository.findById(id).map(b -> priorityScoreService.decorate(DtoMapper.toDto(b)));
     }
 
     /**

@@ -46,6 +46,11 @@ class LeadServiceTest {
     @Mock BusinessRepository businessRepository;
     @Mock ContactRepository contactRepository;
     @Mock UserRepository userRepository;
+    @Mock com.econet.leads.realtime.ClaimRegistry claimRegistry;
+    @Mock com.econet.leads.realtime.PresenceService presenceService;
+    @Mock com.econet.leads.realtime.SseEventService events;
+    @Mock PriorityScoreService priorityScoreService;
+    @Mock DashboardService dashboardService;
 
     LeadService service;
     User caller;
@@ -55,7 +60,12 @@ class LeadServiceTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(NOW.atZone(MONTREAL).toInstant(), MONTREAL);
-        service = new LeadService(businessRepository, contactRepository, userRepository, new DataQualityService(), clock);
+        when(dashboardService.getTodayCounts(any())).thenReturn(new com.econet.leads.dto.DashboardDTOs.TodayCounts(1, 1));
+        when(priorityScoreService.ratesByType()).thenReturn(java.util.Map.of());
+        when(priorityScoreService.decorate(any(), any())).thenAnswer(inv -> inv.getArgument(0));
+        when(claimRegistry.get(any())).thenReturn(Optional.empty());
+        service = new LeadService(businessRepository, contactRepository, userRepository, new DataQualityService(), clock,
+                claimRegistry, presenceService, events, priorityScoreService, new QualificationService(), dashboardService);
 
         caller = user("alice");
         otherUser = user("bob");

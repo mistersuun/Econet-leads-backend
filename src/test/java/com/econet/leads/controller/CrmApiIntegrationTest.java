@@ -308,7 +308,7 @@ class CrmApiIntegrationTest {
         assertThat(bytes[2]).isEqualTo((byte) 0xBF);
         String csv = new String(bytes, 3, bytes.length - 3, java.nio.charset.StandardCharsets.UTF_8);
         String[] lines = csv.split("\n");
-        assertThat(lines[0]).isEqualTo("name,type,phone,email,website,street,city,postal_code,status,last_contacted,next_follow_up,quality,source");
+        assertThat(lines[0]).isEqualTo("name,type,phone,email,website,street,city,postal_code,status,last_contacted,next_follow_up,quality,source,decision_maker,current_provider,contract_ends_at,employees");
         assertThat(lines).hasSize(3);
         assertThat(lines[1]).startsWith("\"CPE Basse Qualité\"");
         assertThat(lines[2]).startsWith("\"CPE Haute Qualité\"");
