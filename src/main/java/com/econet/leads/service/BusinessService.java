@@ -316,6 +316,22 @@ public class BusinessService {
     }
 
     /**
+     * Would {@link #importRecord} merge this candidate into an existing lead (same external id, or one
+     * of the duplicate rules)? Used by file imports that must skip duplicates instead of updating them.
+     * Normalizes the candidate in place, as importRecord does.
+     */
+    @Transactional(readOnly = true)
+    public boolean existsDuplicate(Business candidate) {
+        normalizeBusinessData(candidate);
+        if (candidate.getExternalId() != null && candidate.getDataSource() != null
+                && businessRepository.findFirstByExternalIdAndDataSourceOrderByCreatedAtAsc(
+                        candidate.getExternalId(), candidate.getDataSource()).isPresent()) {
+            return true;
+        }
+        return findDuplicate(candidate).isPresent();
+    }
+
+    /**
      * Update existing business with new data
      * Accepts fresher non-null values to keep data current
      */

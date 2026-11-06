@@ -17,6 +17,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -68,6 +69,9 @@ public class SecurityConfig {
 
                         // Releasing one's own claim is a caller action, not an admin delete
                         .requestMatchers(HttpMethod.DELETE, "/api/leads/*/claim").hasAnyRole("ADMIN", "USER")
+
+                        // A caller who started a file import follows its job by id (the rest of the job API stays admin-only)
+                        .requestMatchers(new RegexRequestMatcher("/api/scraper-jobs/[0-9a-fA-F-]{36}", "GET")).hasAnyRole("ADMIN", "USER")
 
                         // Admin-only endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

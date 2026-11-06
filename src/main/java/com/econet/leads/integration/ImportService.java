@@ -137,6 +137,14 @@ public class ImportService {
         }
     }
 
+    /**
+     * Starts a custom background job for a source (file imports): same bookkeeping, one-at-a-time rule
+     * per source and bounded executor as every other import.
+     */
+    public ScraperJob startTask(DataSource dataSource, java.util.function.Consumer<UUID> task) {
+        return start(dataSource, task::accept);
+    }
+
     public boolean isImportRunning(DataSource dataSource) {
         return scraperJobRepository.existsBySourceIdAndStatusIn(dataSource.getId(), ACTIVE_STATUSES);
     }

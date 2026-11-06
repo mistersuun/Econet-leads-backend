@@ -100,6 +100,7 @@ public class ImportJobRunner {
                 c.errors.append(String.format("... and %d more failed records%n", c.failed - MAX_ERROR_LINES));
             }
 
+            report.fireComplete(new ImportReport.Totals(c.processed, c.added, c.updated, c.failed));
             jobTracker.complete(jobId, c.processed, c.added, c.updated, c.errors.toString(), report.asText());
             jobTracker.updateDataSourceSync(dataSourceId, c.added + c.updated);
             log.info("Import job {} completed for {}: {} processed, {} added, {} updated, {} failed",
