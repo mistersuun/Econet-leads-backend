@@ -15,6 +15,18 @@ public class ImportReport {
     private final int maxLines;
     private final List<String> lines = new ArrayList<>();
     private volatile Consumer<Totals> completionHook;
+    private volatile Integer skipped;
+    private volatile Integer invalid;
+
+    /** Importers that reject or skip rows record the counts here; stored on the job as skipped / invalid. */
+    public void setRowCounts(int skipped, int invalid) {
+        this.skipped = skipped;
+        this.invalid = invalid;
+    }
+
+    Integer skipped() { return skipped; }
+
+    Integer invalid() { return invalid; }
 
     /** Counters of a finished run, handed to the completion hook. */
     public record Totals(int processed, int added, int updated, int failed) {

@@ -173,6 +173,14 @@ class FileImportApiIntegrationTest {
         assertThat(done.get("recordsAdded").asInt()).isEqualTo(3);
         assertThat(done.get("recordsUpdated").asInt()).isEqualTo(0);
         assertThat(done.get("recordsProcessed").asInt()).isEqualTo(3);
+        assertThat(done.get("skipped").asInt()).isEqualTo(2);
+        assertThat(done.get("invalid").asInt()).isEqualTo(2);
+        mvc.perform(get("/api/scraper-jobs").param("page", "0").param("size", "20").with(ALICE))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].skipped").exists());
+        mvc.perform(get("/api/scraper-jobs/running").with(ALICE)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/scraper-jobs/statistics").with(ALICE)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/scraper-jobs/{id}/cancel", done.get("id").asText()).with(ALICE)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/scraper-jobs").with(VIEWER)).andExpect(status().isForbidden());
         String log = done.get("log").asText();
         assertThat(log).startsWith("Résumé: 7 lignes lues · 3 ajoutés · 0 mis à jour · 2 ignorés (doublons) · 2 invalides · 0 erreurs");
         assertThat(log).contains("Ligne 4 invalide: nom manquant")

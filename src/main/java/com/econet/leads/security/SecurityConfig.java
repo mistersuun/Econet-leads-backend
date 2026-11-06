@@ -70,8 +70,9 @@ public class SecurityConfig {
                         // Releasing one's own claim is a caller action, not an admin delete
                         .requestMatchers(HttpMethod.DELETE, "/api/leads/*/claim").hasAnyRole("ADMIN", "USER")
 
-                        // A caller who started a file import follows its job by id (the rest of the job API stays admin-only)
+                        // A caller who started a file import follows its job (list or by id) (the rest of the job API stays admin-only)
                         .requestMatchers(new RegexRequestMatcher("/api/scraper-jobs/[0-9a-fA-F-]{36}", "GET")).hasAnyRole("ADMIN", "USER")
+                        .requestMatchers(HttpMethod.GET, "/api/scraper-jobs").hasAnyRole("ADMIN", "USER")
 
                         // Admin-only endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

@@ -111,7 +111,7 @@ public class ImportJobRunner {
             }
 
             report.fireComplete(new ImportReport.Totals(c.processed, c.added, c.updated, c.failed));
-            jobTracker.complete(jobId, c.processed, c.added, c.updated, c.errors.toString(), report.asText());
+            jobTracker.complete(jobId, c.processed, c.added, c.updated, c.errors.toString(), report.asText(), report.skipped(), report.invalid());
             jobTracker.updateDataSourceSync(dataSourceId, c.added + c.updated);
             log.info("Import job {} completed for {}: {} processed, {} added, {} updated, {} failed",
                     jobId, sourceName, c.processed, c.added, c.updated, c.failed);

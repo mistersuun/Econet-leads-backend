@@ -68,7 +68,15 @@ public class ImportJobTracker {
     /** @param log non-fatal importer notes (row counts, skipped filters...), stored in scraper_jobs.log */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void complete(UUID jobId, int processed, int added, int updated, String errors, String log) {
+        complete(jobId, processed, added, updated, errors, log, null, null);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void complete(UUID jobId, int processed, int added, int updated, String errors, String log,
+                         Integer skipped, Integer invalid) {
         ScraperJob job = load(jobId);
+        job.setRecordsSkipped(skipped);
+        job.setRecordsInvalid(invalid);
         if (job.getStatus() == ScraperJob.JobStatus.CANCELLED) {
             return;
         }

@@ -140,7 +140,11 @@ public class LeadService {
             p.add(cb.lessThanOrEqualTo(root.get("nextFollowUpAt"), now));
             p.add(cb.not(root.get("leadStatus").in(LeadStatus.TERMINAL)));
             if (!Long.class.equals(query.getResultType())) {
-                query.orderBy(cb.asc(root.get("nextFollowUpAt")), cb.asc(root.get("id")));
+                // hot statuses first (a fresh website request is INTERESTED, due now), then oldest due
+                Expression<Integer> hot = cb.<Integer>selectCase()
+                        .when(root.get("leadStatus").in(LeadStatus.INTERESTED, LeadStatus.QUOTE_SENT), 0)
+                        .otherwise(1);
+                query.orderBy(cb.asc(hot), cb.asc(root.get("nextFollowUpAt")), cb.asc(root.get("id")));
             }
             return cb.and(p.toArray(new Predicate[0]));
         };

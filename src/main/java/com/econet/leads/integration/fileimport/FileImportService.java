@@ -104,6 +104,7 @@ public class FileImportService {
                 if (counts.invalid > MAX_REASONS) {
                     report.note("… et " + (counts.invalid - MAX_REASONS) + " autres lignes invalides");
                 }
+                report.setRowCounts(counts.skipped, counts.invalid);
                 report.prepend(String.format(Locale.ROOT,
                     "Résumé: %d lignes lues · %d ajoutés · %d mis à jour · %d ignorés (doublons) · %d invalides · %d erreurs",
                     counts.read, t.added(), t.updated(), counts.skipped, counts.invalid, t.failed()));

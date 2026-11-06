@@ -108,6 +108,22 @@ class CrmApiIntegrationTest {
     }
 
     @Test
+    @WithMockUser(username = "alice", roles = "USER")
+    void dueFollowUpsOrderHotStatusesBeforeOlderColdOnes() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        lead("Rappel Ancien", "Laval", "4505550901", 50, LeadStatus.CONTACTED, null, now.minusDays(5));
+        lead("Demande Site Fraîche", "Montréal", "5145550902", 50, LeadStatus.INTERESTED, null, now);
+        lead("Soumission Hier", "Laval", "4505550903", 50, LeadStatus.QUOTE_SENT, null, now.minusDays(1));
+
+        mvc.perform(get("/api/leads/queue").param("size", "10").param("followUpsOnly", "true"))
+                .andExpect(status().isOk())
+                // hot statuses first, oldest due first within each group; cold follow-ups after them
+                .andExpect(jsonPath("$[0].businessName").value("Soumission Hier"))
+                .andExpect(jsonPath("$[1].businessName").value("Demande Site Fraîche"))
+                .andExpect(jsonPath("$[2].businessName").value("Rappel Ancien"));
+    }
+
+    @Test
     void teammatesSeeEachOthersCallHistory() throws Exception {
         mvc.perform(post("/api/leads/{id}/calls", followUpDue.getId())
                         .with(user("bob").roles("USER"))
