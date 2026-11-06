@@ -2,6 +2,7 @@ package com.econet.leads.service;
 
 import com.econet.leads.config.TimeConfig;
 import com.econet.leads.dto.NotificationDTO;
+import com.econet.leads.integration.website.WebsiteRequestsImporter;
 import com.econet.leads.model.Business;
 import com.econet.leads.model.LeadStatus;
 import com.econet.leads.model.Tender;
@@ -24,7 +25,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * Notifications of the current user: follow-ups due today / overdue on leads assigned to them or
@@ -38,6 +42,7 @@ public class NotificationService {
     static final int MAX_ITEMS = 100;
     static final Duration CLAIM_EXPIRED_WINDOW = Duration.ofHours(1);
     static final Duration TENDER_CLOSING_WINDOW = Duration.ofHours(48);
+    static final Duration INBOUND_WINDOW = Duration.ofHours(24);
     static final EnumSet<TenderStatus> TENDER_STATUSES = EnumSet.of(TenderStatus.REVIEWING, TenderStatus.BIDDING);
     private static final DateTimeFormatter WHEN = DateTimeFormatter.ofPattern("d MMM 'à' HH:mm", Locale.CANADA_FRENCH);
 
@@ -53,8 +58,24 @@ public class NotificationService {
         LocalDateTime tomorrowStart = todayStart.plusDays(1);
         List<NotificationDTO> result = new ArrayList<>();
 
+        // Website requests first: they are also due follow-ups, but one entry per lead is enough
+        Set<UUID> inboundIds = new HashSet<>();
+        for (Business b : businessRepository.findUncalledBySource(WebsiteRequestsImporter.DATA_SOURCE,
+                now.minus(INBOUND_WINDOW), LeadStatus.TERMINAL, user.getId(), PageRequest.of(0, MAX_ITEMS))) {
+            inboundIds.add(b.getId());
+            result.add(new NotificationDTO(
+                    "inbound_request:" + b.getId(),
+                    NotificationDTO.INBOUND_REQUEST,
+                    b.getBusinessName(),
+                    "Nouvelle demande du site · " + inboundLabel(b),
+                    b.getId(), null, b.getCreatedAt()));
+        }
+
         for (Business b : businessRepository.findFollowUpsDueForUser(tomorrowStart, LeadStatus.TERMINAL, user.getId(),
                 PageRequest.of(0, MAX_ITEMS))) {
+            if (inboundIds.contains(b.getId())) {
+                continue;
+            }
             boolean overdue = b.getNextFollowUpAt().isBefore(todayStart);
             result.add(new NotificationDTO(
                     (overdue ? "follow_up_overdue:" : "follow_up_due:") + b.getId(),
@@ -89,5 +110,12 @@ public class NotificationService {
 
         result.sort(Comparator.comparing(NotificationDTO::at));
         return result.size() > MAX_ITEMS ? result.subList(0, MAX_ITEMS) : result;
+    }
+
+    private static String inboundLabel(Business b) {
+        String type = b.getBusinessType() == null ? "" : b.getBusinessType().replace("Demande web – ", "");
+        type = type.isEmpty() ? type : Character.toUpperCase(type.charAt(0)) + type.substring(1);
+        String value = b.getEstimatedValue() == null ? null : b.getEstimatedValue().stripTrailingZeros().toPlainString() + " $";
+        return value == null ? type : type + " · " + value;
     }
 }

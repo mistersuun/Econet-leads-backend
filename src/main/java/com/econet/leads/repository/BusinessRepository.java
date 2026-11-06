@@ -147,6 +147,21 @@ public interface BusinessRepository extends JpaRepository<Business, UUID>, JpaSp
                                            @Param("userId") UUID userId,
                                            Pageable pageable);
 
+    /** Website requests nobody has contacted yet, assigned to the user or unassigned (inbound_request notifications). */
+    @Query("""
+            SELECT b FROM Business b LEFT JOIN b.assignedTo u
+            WHERE b.dataSource = :source AND b.contactCount = 0
+              AND b.leadStatus NOT IN :excluded
+              AND b.createdAt >= :since
+              AND (u IS NULL OR u.id = :userId)
+            ORDER BY b.createdAt DESC, b.id ASC
+            """)
+    List<Business> findUncalledBySource(@Param("source") String source,
+                                        @Param("since") java.time.LocalDateTime since,
+                                        @Param("excluded") java.util.Collection<com.econet.leads.model.LeadStatus> excluded,
+                                        @Param("userId") UUID userId,
+                                        Pageable pageable);
+
     // --- Filter options (GET /api/businesses/filters) ---
 
     @Query("SELECT DISTINCT b.businessType FROM Business b WHERE b.businessType IS NOT NULL AND b.businessType <> ''")

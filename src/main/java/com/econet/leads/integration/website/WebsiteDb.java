@@ -89,6 +89,11 @@ public class WebsiteDb {
         return jdbc != null;
     }
 
+    /** The pool hands out read-only, non-autocommit connections of at most 2 per pool. */
+    public boolean isReadOnlyPool() {
+        return dataSource != null && dataSource.isReadOnly() && !dataSource.isAutoCommit() && dataSource.getMaximumPoolSize() == 2;
+    }
+
     /** Read-only JDBC access; only call when {@link #isConfigured()}. */
     public JdbcTemplate jdbc() {
         if (jdbc == null) {

@@ -13,4 +13,6 @@ public record NotificationDTO(String id, String kind, String title, String body,
     public static final String FOLLOW_UP_OVERDUE = "follow_up_overdue";
     public static final String CLAIM_EXPIRED = "claim_expired";
     public static final String TENDER_CLOSING = "tender_closing";
+    /** A request from the website that nobody has called yet. */
+    public static final String INBOUND_REQUEST = "inbound_request";
 }

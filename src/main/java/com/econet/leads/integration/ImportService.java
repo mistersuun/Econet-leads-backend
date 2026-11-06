@@ -14,6 +14,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.econet.leads.integration.website.WebsiteRequestsImporter;
+import com.econet.leads.integration.website.WebsiteRequestsService;
 import com.econet.leads.integration.support.HttpDownloader;
 import com.econet.leads.integration.support.ImportFiles;
 
@@ -51,6 +53,8 @@ public class ImportService {
     private final QuebecBusinessRegisterImporter registerImporter;
     private final CanadaBuysTenderImporter canadaBuysImporter;
     private final SeaoTenderImporter seaoImporter;
+    private final WebsiteRequestsImporter websiteImporter;
+    private final WebsiteRequestsService websiteService;
     private final HttpDownloader downloader;
     private final CkanApiClient ckanApiClient;
 
@@ -71,6 +75,8 @@ public class ImportService {
                          QuebecBusinessRegisterImporter registerImporter,
                          CanadaBuysTenderImporter canadaBuysImporter,
                          SeaoTenderImporter seaoImporter,
+                         WebsiteRequestsImporter websiteImporter,
+                         WebsiteRequestsService websiteService,
                          HttpDownloader downloader,
                          CkanApiClient ckanApiClient) {
         this.scraperJobRepository = scraperJobRepository;
@@ -87,6 +93,8 @@ public class ImportService {
         this.registerImporter = registerImporter;
         this.canadaBuysImporter = canadaBuysImporter;
         this.seaoImporter = seaoImporter;
+        this.websiteImporter = websiteImporter;
+        this.websiteService = websiteService;
         this.downloader = downloader;
         this.ckanApiClient = ckanApiClient;
     }
@@ -217,6 +225,11 @@ public class ImportService {
                 case SeaoTenderImporter.IMPORTER -> {
                     var settings = seaoImporter.parse(dataSource);
                     return jobId -> jobRunner.runTenders(jobId, sourceId, name, seaoImporter.stream(settings, report), report);
+                }
+                case WebsiteRequestsImporter.IMPORTER -> {
+                    // eager: "not configured" is a 400 at request time, not a FAILED job
+                    var stream = websiteImporter.stream(dataSource, report);
+                    return jobId -> jobRunner.runBusinesses(jobId, sourceId, name, stream, report, websiteService::afterUpsert);
                 }
                 default -> throw new IllegalArgumentException("Unknown importer '" + importer + "' for " + name);
             }
