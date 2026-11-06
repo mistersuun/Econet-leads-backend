@@ -126,6 +126,20 @@ public class BusinessService {
         return businessRepository.save(business);
     }
 
+    /**
+     * Id of the existing lead an external candidate (OpenStreetMap...) would duplicate: same name in the
+     * same city, or same phone in the same city. Only exact matches: this flags "existe déjà" in lists.
+     */
+    @Transactional(readOnly = true)
+    public Optional<UUID> findExistingLeadId(String name, String phone, String city) {
+        Business probe = new Business();
+        probe.setBusinessName(name);
+        probe.setPhone(phone);
+        probe.setAddressCity(city);
+        normalizeBusinessData(probe);
+        return findExactDuplicate(probe).map(Business::getId);
+    }
+
     /** Same name in the same city, or same normalized phone in the same city (both cities null counts as same). */
     Optional<Business> findExactDuplicate(Business candidate) {
         String city = candidate.getAddressCity();
