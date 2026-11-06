@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -56,6 +57,8 @@ class ClaimRegistryTest {
         ClaimRegistry.Claim refreshed = registry.claim(lead, "CPE Les Lucioles", alice, "alice");
         assertThat(refreshed.claimedAt()).isEqualTo(first.claimedAt());
         assertThat(refreshed.expiresAt()).isEqualTo(clock.now.plus(Duration.ofMinutes(10)));
+        // a refresh by the holder extends the claim silently: still a single lead.claimed event
+        verify(events, times(1)).publish(eq(ClaimRegistry.EVENT_CLAIMED), any());
 
         assertThatThrownBy(() -> registry.claim(lead, "CPE Les Lucioles", bob, "bob"))
                 .isInstanceOf(ClaimConflictException.class)

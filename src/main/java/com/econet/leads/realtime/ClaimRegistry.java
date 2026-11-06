@@ -80,18 +80,23 @@ public class ClaimRegistry {
     public Claim claim(UUID leadId, String leadName, UUID userId, String username) {
         Instant now = clock.instant();
         Claim[] conflict = new Claim[1];
+        boolean[] isNew = {true};
         Claim result = claims.compute(leadId, (id, existing) -> {
             if (existing != null && existing.isActive(now) && !existing.userId().equals(userId)) {
                 conflict[0] = existing;
                 return existing;
             }
+            isNew[0] = existing == null || !existing.isActive(now) || !existing.userId().equals(userId);
             Instant claimedAt = existing != null && existing.isActive(now) ? existing.claimedAt() : now;
             return new Claim(leadId, leadName, userId, username, claimedAt, now.plus(ttl));
         });
         if (conflict[0] != null) {
             throw new ClaimConflictException(conflict[0]);
         }
-        events.publish(EVENT_CLAIMED, claimedPayload(result));
+        // A refresh by the same holder only extends expiresAt: no event (clients would see the same claim again)
+        if (isNew[0]) {
+            events.publish(EVENT_CLAIMED, claimedPayload(result));
+        }
         publisher.publishEvent(new ClaimsChanged());
         return result;
     }
