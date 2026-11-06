@@ -153,7 +153,7 @@ public class WebsiteRequestsImporter {
     // ------------------------------------------------------------------ contact_submissions
 
     private boolean readContacts(JdbcTemplate jdbc, Timestamp since, Predicate<Business> sink) {
-        String sql = "SELECT id, name, phone, email, service_type, property_size, preferred_date, message, urgent_request, "
+        String sql = "SELECT id, first_name, last_name, phone, email, service_type, property_size, preferred_date, message, urgent_request, "
                 + "created_at FROM contact_submissions" + (since != null ? " WHERE created_at > ?" : "")
                 + " ORDER BY created_at ASC LIMIT " + MAX_ROWS_PER_TABLE;
         return query(jdbc, sql, since, rs -> sink.test(toContact(rs)));
@@ -161,7 +161,7 @@ public class WebsiteRequestsImporter {
 
     Business toContact(ResultSet rs) throws SQLException {
         String id = str(rs, "id");
-        String name = str(rs, "name");
+        String name = join(" ", str(rs, "first_name"), str(rs, "last_name")); // real schema: first_name + last_name
         String email = str(rs, "email");
         String message = str(rs, "message");
 

@@ -95,7 +95,7 @@ class WebsiteRequestsIntegrationTest {
                       language VARCHAR(5), created_at TIMESTAMP NOT NULL)""");
             s.execute("""
                     CREATE TABLE IF NOT EXISTS contact_submissions (
-                      id VARCHAR(40) PRIMARY KEY, name VARCHAR(255), phone VARCHAR(40), email VARCHAR(255),
+                      id VARCHAR(40) PRIMARY KEY, first_name VARCHAR(100), last_name VARCHAR(100), phone VARCHAR(40), email VARCHAR(255),
                       service_type VARCHAR(100), property_size VARCHAR(40), preferred_date VARCHAR(40), message TEXT,
                       urgent_request BOOLEAN, created_at TIMESTAMP NOT NULL)""");
             s.execute("DELETE FROM booking_requests");
@@ -319,8 +319,9 @@ class WebsiteRequestsIntegrationTest {
     private void insertContact(String id, String name, String phone, String email, String service, String size, String date,
                                String message, boolean urgent, LocalDateTime createdAt) throws Exception {
         try (Connection c = DriverManager.getConnection(WEBSITE_URL, "sa", "");
-             var ps = c.prepareStatement("INSERT INTO contact_submissions VALUES (?,?,?,?,?,?,?,?,?,?)")) {
-            Object[] v = {id, name, phone, email, service, size, date, message, urgent, java.sql.Timestamp.valueOf(createdAt)};
+             var ps = c.prepareStatement("INSERT INTO contact_submissions VALUES (?,?,?,?,?,?,?,?,?,?,?)")) {
+            String[] parts = name == null ? new String[] {null, null} : (name.contains(" ") ? name.split(" ", 2) : new String[] {name, null});
+            Object[] v = {id, parts[0], parts[1], phone, email, service, size, date, message, urgent, java.sql.Timestamp.valueOf(createdAt)};
             for (int i = 0; i < v.length; i++) ps.setObject(i + 1, v[i]);
             ps.executeUpdate();
         }
