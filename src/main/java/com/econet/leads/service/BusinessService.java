@@ -3,6 +3,7 @@ package com.econet.leads.service;
 import com.econet.leads.dto.BusinessDTO;
 import com.econet.leads.dto.BusinessFilterOptionsDTO;
 import com.econet.leads.exception.ApiException;
+import com.econet.leads.exception.DuplicateLeadException;
 import com.econet.leads.mapper.DtoMapper;
 import com.econet.leads.model.Business;
 import com.econet.leads.repository.BusinessRepository;
@@ -103,6 +104,90 @@ public class BusinessService {
         business.setDataQualityScore(qualityScore);
 
         return businessRepository.save(business);
+    }
+
+    /**
+     * Creates a lead typed in by a person. Only an EXACT duplicate (same name in the same city, or the
+     * same phone in the same city) is refused with {@link DuplicateLeadException}; fuzzy look-alikes are
+     * only hints (see {@link #findDuplicates}). {@code force} skips the check.
+     */
+    @Transactional
+    public Business createManual(Business business, boolean force) {
+        normalizeBusinessData(business);
+        if (!force) {
+            Optional<Business> exact = findExactDuplicate(business);
+            if (exact.isPresent()) {
+                throw new DuplicateLeadException("Ce lead existe déjà : " + exact.get().getBusinessName()
+                        + (exact.get().getAddressCity() != null ? " (" + exact.get().getAddressCity() + ")" : ""),
+                        priorityScoreService.decorate(DtoMapper.toDto(exact.get())));
+            }
+        }
+        business.setDataQualityScore(dataQualityService.calculateQualityScore(business));
+        return businessRepository.save(business);
+    }
+
+    /** Same name in the same city, or same normalized phone in the same city (both cities null counts as same). */
+    Optional<Business> findExactDuplicate(Business candidate) {
+        String city = candidate.getAddressCity();
+        if (candidate.getBusinessName() != null && city != null) {
+            Optional<Business> byName = businessRepository
+                    .findTop10ByBusinessNameAndAddressCityOrderByCreatedAtAsc(candidate.getBusinessName(), city)
+                    .stream().findFirst();
+            if (byName.isPresent()) {
+                return byName;
+            }
+        }
+        String phone = PhoneFormatter.normalize(candidate.getPhone());
+        if (phone != null && !phone.isEmpty()) {
+            return businessRepository.findTop20ByPhoneNormalizedOrderByCreatedAtAsc(phone).stream()
+                    .filter(b -> b.getAddressCity() == null ? city == null : b.getAddressCity().equalsIgnoreCase(city))
+                    .findFirst();
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * "Existe déjà ?" hints while typing: up to {@code limit} leads matching by the same rules as
+     * import deduplication, strongest first: exact name (+ city when given), same phone (compatible
+     * city), fuzzy name (similarity above {@value #FUZZY_THRESHOLD}, same city when given).
+     */
+    @Transactional(readOnly = true)
+    public List<BusinessDTO> findDuplicates(String name, String phone, String city, int limit) {
+        java.util.Map<UUID, Business> found = new java.util.LinkedHashMap<>();
+        String cleanName = name == null ? null : name.trim();
+        String cleanCity = city == null || city.isBlank() ? null : AddressNormalizer.normalizeCity(city.trim());
+        String normalizedPhone = PhoneFormatter.normalize(phone == null || phone.isBlank() ? null : phone);
+
+        if (cleanName != null && !cleanName.isEmpty()) {
+            List<Business> exact = cleanCity != null
+                    ? businessRepository.findTop10ByBusinessNameAndAddressCityOrderByCreatedAtAsc(cleanName, cleanCity)
+                    : businessRepository.findTop10ByBusinessNameIgnoreCaseOrderByCreatedAtAsc(cleanName);
+            exact.forEach(b -> found.putIfAbsent(b.getId(), b));
+        }
+        if (normalizedPhone != null && normalizedPhone.length() >= 10) {
+            businessRepository.findTop20ByPhoneNormalizedOrderByCreatedAtAsc(normalizedPhone).stream()
+                    .filter(b -> citiesCompatible(cleanCity, b.getAddressCity()))
+                    .forEach(b -> found.putIfAbsent(b.getId(), b));
+        }
+        if (cleanName != null && cleanName.length() >= FUZZY_PREFIX_LENGTH && found.size() < limit) {
+            String lower = cleanName.toLowerCase(Locale.ROOT);
+            int len = lower.length();
+            int minLength = (int) Math.floor(len * FUZZY_THRESHOLD);
+            int maxLength = (int) Math.ceil(len / FUZZY_THRESHOLD);
+            String likePattern = escapeLike(lower.substring(0, FUZZY_PREFIX_LENGTH)) + "%";
+            PageRequest page = PageRequest.of(0, FUZZY_MAX_CANDIDATES);
+            List<Business> candidates = cleanCity != null
+                    ? businessRepository.findFuzzyCandidatesAnyType(cleanCity, likePattern, minLength, maxLength, page)
+                    : businessRepository.findFuzzyCandidatesAnyCity(likePattern, minLength, maxLength, page);
+            for (Business b : candidates) {
+                if (StringSimilarity.calculate(cleanName, b.getBusinessName()) > FUZZY_THRESHOLD) {
+                    found.putIfAbsent(b.getId(), b);
+                }
+            }
+        }
+        java.util.Map<String, Double> rates = priorityScoreService.ratesByType();
+        return found.values().stream().limit(limit)
+                .map(b -> priorityScoreService.decorate(DtoMapper.toDto(b), rates)).toList();
     }
 
     @Transactional

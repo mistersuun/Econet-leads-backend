@@ -32,6 +32,33 @@ public interface BusinessRepository extends JpaRepository<Business, UUID>, JpaSp
 
     List<Business> findTop20ByPhoneNormalizedOrderByCreatedAtAsc(String phoneNormalized);
 
+    List<Business> findTop10ByBusinessNameIgnoreCaseOrderByCreatedAtAsc(String businessName);
+
+    /** Same-city leads of every type whose lower-cased name starts with the prefix (duplicate hints, see BusinessService#findDuplicates). */
+    @Query("""
+            SELECT b FROM Business b
+            WHERE b.addressCity = :city
+              AND LOWER(b.businessName) LIKE :namePrefix ESCAPE '!'
+              AND LENGTH(b.businessName) BETWEEN :minLength AND :maxLength
+            ORDER BY b.createdAt ASC
+            """)
+    List<Business> findFuzzyCandidatesAnyType(@Param("city") String city,
+                                              @Param("namePrefix") String namePrefix,
+                                              @Param("minLength") int minLength,
+                                              @Param("maxLength") int maxLength,
+                                              Pageable pageable);
+
+    @Query("""
+            SELECT b FROM Business b
+            WHERE LOWER(b.businessName) LIKE :namePrefix ESCAPE '!'
+              AND LENGTH(b.businessName) BETWEEN :minLength AND :maxLength
+            ORDER BY b.createdAt ASC
+            """)
+    List<Business> findFuzzyCandidatesAnyCity(@Param("namePrefix") String namePrefix,
+                                              @Param("minLength") int minLength,
+                                              @Param("maxLength") int maxLength,
+                                              Pageable pageable);
+
     Optional<Business> findFirstByExternalIdAndDataSourceOrderByCreatedAtAsc(String externalId, String dataSource);
 
     /**

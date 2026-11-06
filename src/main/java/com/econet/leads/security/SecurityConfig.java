@@ -76,6 +76,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/scraper-jobs/**").hasRole("ADMIN")
                         .requestMatchers("/api/data-sources/**").hasRole("ADMIN")
 
+                        // Adding leads: duplicate hints, file imports and map discovery are caller tools, not read-only data
+                        .requestMatchers(HttpMethod.GET, "/api/businesses/duplicates").hasAnyRole("ADMIN", "USER")
+                        .requestMatchers("/api/imports/**", "/api/discover/**").hasAnyRole("ADMIN", "USER")
+
                         // Every role (including VIEWER) can read: leads, queue, dashboard, contacts, /api/auth/me
                         .requestMatchers(HttpMethod.GET, "/api/**").authenticated()
 

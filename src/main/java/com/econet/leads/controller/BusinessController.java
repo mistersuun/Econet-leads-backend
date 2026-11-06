@@ -13,6 +13,7 @@ import com.econet.leads.model.User;
 import com.econet.leads.repository.UserRepository;
 import com.econet.leads.security.AuthenticationFacade;
 import com.econet.leads.service.LeadService;
+import com.econet.leads.service.ManualLeadService;
 import com.econet.leads.service.QualificationService;
 import com.opencsv.CSVWriter;
 import jakarta.servlet.http.HttpServletResponse;
@@ -43,6 +44,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -60,6 +62,7 @@ public class BusinessController {
     private final BusinessCategoryRepository businessCategoryRepository;
     private final UserRepository userRepository;
     private final LeadService leadService;
+    private final ManualLeadService manualLeadService;
     private final AuthenticationFacade authenticationFacade;
     private final Clock clock;
 
@@ -182,35 +185,20 @@ public class BusinessController {
         return ResponseEntity.ok(results);
     }
 
+    @GetMapping("/duplicates")
+    @Operation(summary = "Possible duplicates", description = "Up to 5 existing leads matching name / phone / city by the import deduplication rules (exact name+city, phone+city, fuzzy name); for live \"existe déjà ?\" hints. USER/ADMIN.")
+    public ResponseEntity<List<BusinessDTO>> duplicates(@RequestParam(required = false) String name,
+                                                        @RequestParam(required = false) String phone,
+                                                        @RequestParam(required = false) String city) {
+        return ResponseEntity.ok(businessService.findDuplicates(name, phone, city, 5));
+    }
+
     @PostMapping
-    @Operation(summary = "Create business", description = "Create a new business entry")
+    @Operation(summary = "Add a lead", description = "Manual lead: dataSource is always \"Manuel\", assigned to the creator, 409 {error, duplicate} on an exact duplicate unless force=true. USER/ADMIN.")
     public ResponseEntity<BusinessDTO> createBusiness(@Valid @RequestBody BusinessCreateRequest request) {
-        Business business = new Business();
-        business.setBusinessName(request.getBusinessName());
-        business.setBusinessType(request.getBusinessType());
-
-        // Fetch category if provided
-        if (request.getCategoryId() != null) {
-            BusinessCategory category = businessCategoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> ApiException.badRequest("Category not found with id: " + request.getCategoryId()));
-            business.setCategory(category);
-        }
-
-        business.setAddressStreet(request.getAddressStreet());
-        business.setAddressCity(request.getAddressCity());
-        business.setAddressProvince(request.getAddressProvince());
-        business.setPostalCode(request.getPostalCode());
-        business.setPhone(request.getPhone());
-        business.setEmail(request.getEmail());
-        business.setWebsite(request.getWebsite());
-        business.setLatitude(request.getLatitude());
-        business.setLongitude(request.getLongitude());
-        business.setDataSource(request.getDataSource());
-        business.setSourceUrl(request.getSourceUrl());
-        business.setExternalId(request.getExternalId());
-
-        Business created = businessService.create(business);
-        return ResponseEntity.ok(convertToDTO(created));
+        User creator = authenticationFacade.getCurrentUser();
+        Business created = manualLeadService.create(request, creator);
+        return ResponseEntity.ok(businessService.findDtoById(created.getId()).orElseGet(() -> convertToDTO(created)));
     }
 
     @PutMapping("/{id}")

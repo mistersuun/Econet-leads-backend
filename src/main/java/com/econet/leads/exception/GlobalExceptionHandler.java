@@ -42,6 +42,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
+    /** 409 with the existing lead: {error, duplicate: BusinessDTO}. */
+    @ExceptionHandler(DuplicateLeadException.class)
+    public ResponseEntity<Object> handleDuplicateLead(DuplicateLeadException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", ex.getMessage());
+        body.put("duplicate", ex.getDuplicate());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<Object> handleApi(ApiException ex) {
         return error(ex.getStatus(), ex.getMessage());

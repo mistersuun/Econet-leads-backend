@@ -65,13 +65,25 @@ public class DataSource {
         CSV_DOWNLOAD,
         /** Large downloadable archive (or admin upload), e.g. the Registre des entreprises ZIP. */
         BULK_FILE,
-        MANUAL
+        MANUAL,
+        /** Rows of a file uploaded through POST /api/imports/files; one source per "Import – name". */
+        MANUAL_FILE,
+        /** Candidates found with POST /api/discover/osm (OpenStreetMap). */
+        OPENSTREETMAP,
+        /** Read-only Postgres of the public website (booking_requests, contact_submissions). */
+        WEBSITE_DB
     }
 
     public enum SyncFrequency {
         DAILY,
         WEEKLY,
         MONTHLY,
-        MANUAL
+        MANUAL,
+        /** Rows of a file uploaded through POST /api/imports/files; one source per "Import – name". */
+        MANUAL_FILE,
+        /** Candidates found with POST /api/discover/osm (OpenStreetMap). */
+        OPENSTREETMAP,
+        /** Read-only Postgres of the public website (booking_requests, contact_submissions). */
+        WEBSITE_DB
     }
 }

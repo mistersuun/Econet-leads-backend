@@ -1,6 +1,8 @@
 package com.econet.leads.controller;
 
+import com.econet.leads.dto.DataSourceDTO;
 import com.econet.leads.dto.ScraperJobDTO;
+import com.econet.leads.integration.website.WebsiteDb;
 import com.econet.leads.integration.ImportAlreadyRunningException;
 import com.econet.leads.integration.ImportService;
 import com.econet.leads.model.DataSource;
@@ -35,12 +37,22 @@ public class DataSourceController {
 
     private final DataSourceRepository dataSourceRepository;
     private final ImportService importService;
+    private final WebsiteDb websiteDb;
+
+    /** false only for the website source while WEBSITE_DB_URL is unset. */
+    private boolean isConfigured(DataSource d) {
+        return d.getSourceType() != DataSource.SourceType.WEBSITE_DB || websiteDb.isConfigured();
+    }
+
+    private DataSourceDTO dto(DataSource d) {
+        return DataSourceDTO.of(d, isConfigured(d));
+    }
 
     /**
      * Get all data sources
      */
     @GetMapping
-    public ResponseEntity<List<DataSource>> getAllDataSources(
+    public ResponseEntity<List<DataSourceDTO>> getAllDataSources(
             @RequestParam(required = false) Boolean active) {
 
         List<DataSource> dataSources;
@@ -51,16 +63,16 @@ public class DataSourceController {
             dataSources = dataSourceRepository.findAll();
         }
 
-        return ResponseEntity.ok(dataSources);
+        return ResponseEntity.ok(dataSources.stream().map(this::dto).toList());
     }
 
     /**
      * Get a specific data source by ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<DataSource> getDataSourceById(@PathVariable UUID id) {
+    public ResponseEntity<DataSourceDTO> getDataSourceById(@PathVariable UUID id) {
         return dataSourceRepository.findById(id)
-                .map(ResponseEntity::ok)
+                .map(d -> ResponseEntity.ok(dto(d)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -68,9 +80,9 @@ public class DataSourceController {
      * Get a data source by name
      */
     @GetMapping("/by-name/{name}")
-    public ResponseEntity<DataSource> getDataSourceByName(@PathVariable String name) {
+    public ResponseEntity<DataSourceDTO> getDataSourceByName(@PathVariable String name) {
         return dataSourceRepository.findBySourceName(name)
-                .map(ResponseEntity::ok)
+                .map(d -> ResponseEntity.ok(dto(d)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -198,10 +210,16 @@ public class DataSourceController {
         dataSource.setActive(active);
         dataSourceRepository.save(dataSource);
 
-        return ResponseEntity.ok(dataSource);
+        return ResponseEntity.ok(dto(dataSource));
     }
 
     private ResponseEntity<?> startImport(DataSource dataSource) {
+        // The website source reports "not configured" before "not active": that is what the admin must fix
+        if (!isConfigured(dataSource)) {
+            return ResponseEntity.badRequest().body(Map.of("error",
+                    "La source « " + dataSource.getSourceName() + " » n'est pas configurée : définissez WEBSITE_DB_URL, "
+                            + "WEBSITE_DB_USERNAME et WEBSITE_DB_PASSWORD (Postgres du site, lecture seule)."));
+        }
         if (!Boolean.TRUE.equals(dataSource.getActive())) {
             return ResponseEntity.badRequest().body(Map.of("error", "Data source is not active"));
         }
