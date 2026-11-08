@@ -38,8 +38,11 @@ public class TenderService {
     /** Statuses that don't count as "open" opportunities in the summary. */
     static final Set<TenderStatus> NOT_PURSUED = EnumSet.of(TenderStatus.WON, TenderStatus.LOST, TenderStatus.IGNORED);
 
+    public static final String EVENT_TENDER_UPDATED = "tender.updated";
+
     private final TenderRepository tenderRepository;
     private final Clock clock;
+    private final com.econet.leads.realtime.SseEventService events;
 
     public record Filters(Collection<TenderStatus> statuses, Collection<TenderSource> sources, String q, Boolean openOnly) {
     }
@@ -80,7 +83,9 @@ public class TenderService {
             String notes = request.getNotes().trim();
             tender.setNotes(notes.isEmpty() ? null : notes);
         }
-        return TenderDTO.from(tenderRepository.saveAndFlush(tender));
+        Tender saved = tenderRepository.saveAndFlush(tender);
+        events.publish(EVENT_TENDER_UPDATED, java.util.Map.of("tenderId", saved.getId(), "status", saved.getStatus()));
+        return TenderDTO.from(saved);
     }
 
     @Transactional(readOnly = true)

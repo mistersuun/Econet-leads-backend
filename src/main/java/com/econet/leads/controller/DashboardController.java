@@ -1,6 +1,7 @@
 package com.econet.leads.controller;
 
 import com.econet.leads.dto.DashboardDTOs;
+import com.econet.leads.security.AuthenticationFacade;
 import com.econet.leads.service.DashboardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,6 +27,7 @@ import java.util.List;
 public class DashboardController {
 
     private final DashboardService dashboardService;
+    private final AuthenticationFacade authenticationFacade;
 
     @GetMapping("/summary")
     @Operation(summary = "KPI summary")
@@ -74,5 +76,41 @@ public class DashboardController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return ResponseEntity.ok(dashboardService.getLeaderboard(dashboardService.resolveRange(from, to)));
+    }
+
+    // --- addendum 3 ---
+
+    @GetMapping("/conversion-by-type")
+    @Operation(summary = "Observed conversion per business type (last 180 days, what the queue priority learned)")
+    public ResponseEntity<List<DashboardDTOs.ConversionByType>> conversionByType() {
+        return ResponseEntity.ok(dashboardService.getConversionByType());
+    }
+
+    @GetMapping("/funnel")
+    @Operation(summary = "Dials > connects > conversations > interested > quotes > won in the range")
+    public ResponseEntity<DashboardDTOs.Funnel> funnel(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(dashboardService.getFunnel(dashboardService.resolveRange(from, to)));
+    }
+
+    @GetMapping("/best-hours")
+    @Operation(summary = "Calls, connects and positive outcomes per weekday and hour (Mon-Fri 8-18, Montreal time, zero-filled)")
+    public ResponseEntity<List<DashboardDTOs.BestHour>> bestHours(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(dashboardService.getBestHours(dashboardService.resolveRange(from, to)));
+    }
+
+    @GetMapping("/me/today")
+    @Operation(summary = "My scoreboard: today's calls/conversations/quotes/wins, targets, streak, best day, rank")
+    public ResponseEntity<DashboardDTOs.MeToday> meToday() {
+        return ResponseEntity.ok(dashboardService.getMeToday(authenticationFacade.getCurrentUser()));
+    }
+
+    @GetMapping("/team/today")
+    @Operation(summary = "Team scoreboard for today with live presence")
+    public ResponseEntity<List<DashboardDTOs.TeamToday>> teamToday() {
+        return ResponseEntity.ok(dashboardService.getTeamToday());
     }
 }

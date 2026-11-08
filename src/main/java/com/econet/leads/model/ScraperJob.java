@@ -47,6 +47,13 @@ public class ScraperJob {
     @Column(name = "records_updated")
     private Integer recordsUpdated = 0;
 
+    /** Rows ignored as duplicates / rejected as invalid (file imports); null when the importer does not track them (V11). */
+    @Column(name = "records_skipped")
+    private Integer recordsSkipped;
+
+    @Column(name = "records_invalid")
+    private Integer recordsInvalid;
+
     @Column(columnDefinition = "TEXT")
     private String errors;
 

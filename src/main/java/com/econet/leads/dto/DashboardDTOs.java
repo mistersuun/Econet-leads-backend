@@ -45,4 +45,39 @@ public final class DashboardDTOs {
 
     public record LeaderboardRow(UUID userId, String username, long calls, long conversations, long won) {
     }
+
+    // --- addendum 3 ---
+
+    /** What the queue learned per business type over the last 180 days (rate is Laplace-smoothed). */
+    public record ConversionByType(String businessType, long leadsCalled, long conversations, long positive, double rate) {
+    }
+
+    public record Funnel(long dials, long connects, long conversations, long interested, long quotes, long won) {
+    }
+
+    /** dow 1..7 (ISO, Monday = 1), hour 0..23, Montreal time. */
+    public record BestHour(int dow, int hour, long calls, long connects, long positive) {
+    }
+
+    public record Rank(int position, int of) {
+    }
+
+    public record MeToday(long callsToday,
+                          long conversationsToday,
+                          long quotesToday,
+                          long wonToday,
+                          int callTarget,
+                          int conversationTarget,
+                          int streakDays,
+                          long bestDayCalls,
+                          Rank rankToday) {
+    }
+
+    public record TeamToday(UUID userId, String username, long callsToday, long conversationsToday,
+                            String status, String currentLeadName) {
+    }
+
+    /** Calls and conversations of one user today (target.progress event). */
+    public record TodayCounts(long callsToday, long conversationsToday) {
+    }
 }

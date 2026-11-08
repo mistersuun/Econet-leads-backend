@@ -29,6 +29,9 @@ public class ScraperJobDTO {
     private Integer recordsProcessed;
     private Integer recordsAdded;
     private Integer recordsUpdated;
+    /** Duplicates skipped / invalid rows rejected: file imports only, null otherwise. */
+    private Integer skipped;
+    private Integer invalid;
     private String errors;
     private String log;
     private LocalDateTime createdAt;
@@ -64,6 +67,8 @@ public class ScraperJobDTO {
         dto.setRecordsProcessed(job.getRecordsProcessed());
         dto.setRecordsAdded(job.getRecordsAdded());
         dto.setRecordsUpdated(job.getRecordsUpdated());
+        dto.setSkipped(job.getRecordsSkipped());
+        dto.setInvalid(job.getRecordsInvalid());
         dto.setErrors(job.getErrors());
         dto.setLog(job.getLog());
         dto.setCreatedAt(job.getCreatedAt());

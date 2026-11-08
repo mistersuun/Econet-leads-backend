@@ -1,9 +1,11 @@
 package com.econet.leads.dto;
 
+import com.econet.leads.model.LeadStatus;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.UUID;
 
 @Data
@@ -13,7 +15,7 @@ public class BusinessCreateRequest {
     @Size(max = 255, message = "Business name must not exceed 255 characters")
     private String businessName;
 
-    @NotBlank(message = "Business type is required")
+    /** Optional: defaults to "Autre". */
     @Size(max = 100, message = "Business type must not exceed 100 characters")
     private String businessType;
 
@@ -50,7 +52,7 @@ public class BusinessCreateRequest {
     @DecimalMax(value = "180.0", message = "Longitude must be between -180 and 180")
     private BigDecimal longitude;
 
-    @NotBlank(message = "Data source is required")
+    /** Ignored: the server always records manual leads with dataSource "Manuel". */
     @Size(max = 100, message = "Data source must not exceed 100 characters")
     private String dataSource;
 
@@ -59,4 +61,21 @@ public class BusinessCreateRequest {
 
     @Size(max = 255, message = "External ID must not exceed 255 characters")
     private String externalId;
+
+    /** Free text origin of the lead: "référence", "salon", "vu en passant", "site web"... */
+    @Size(max = 200, message = "Lead source must not exceed 200 characters")
+    private String leadSource;
+
+    /** Written as a NOTE contact on the new lead. */
+    @Size(max = 5000, message = "Notes must not exceed 5000 characters")
+    private String notes;
+
+    /** Partial Qualification (see QualificationService); validated like PATCH /qualification. */
+    private Map<String, Object> qualification;
+
+    /** Create even when an exact duplicate exists (otherwise 409 {error, duplicate}). */
+    private Boolean force;
+
+    /** NEW (default), CONTACTED, INTERESTED or QUOTE_SENT; terminal statuses are refused (400). */
+    private LeadStatus leadStatus;
 }

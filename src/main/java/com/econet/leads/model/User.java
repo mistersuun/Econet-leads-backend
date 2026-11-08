@@ -45,6 +45,16 @@ public class User {
     @Column(nullable = false)
     private Boolean active = true;
 
+    /** Daily scoreboard targets (V9). */
+    @Column(name = "daily_call_target", nullable = false)
+    private Integer dailyCallTarget = DEFAULT_DAILY_CALL_TARGET;
+
+    @Column(name = "daily_conversation_target", nullable = false)
+    private Integer dailyConversationTarget = DEFAULT_DAILY_CONVERSATION_TARGET;
+
+    public static final int DEFAULT_DAILY_CALL_TARGET = 40;
+    public static final int DEFAULT_DAILY_CONVERSATION_TARGET = 6;
+
     public enum UserRole {
         ADMIN,
         USER,

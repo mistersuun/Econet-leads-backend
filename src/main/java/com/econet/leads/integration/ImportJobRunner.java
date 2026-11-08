@@ -51,6 +51,16 @@ public class ImportJobRunner {
                 b -> businessService.importRecord(b).created(), Business::getBusinessName);
     }
 
+    /** Same, calling {@code afterUpsert} with each result (e.g. to announce new leads); a failing hook fails that record only. */
+    public void runBusinesses(UUID jobId, UUID dataSourceId, String sourceName, RecordStream<Business> stream, ImportReport report,
+                              java.util.function.Consumer<BusinessService.UpsertResult> afterUpsert) {
+        runGeneric(jobId, dataSourceId, sourceName, stream, report, b -> {
+            BusinessService.UpsertResult result = businessService.importRecord(b);
+            afterUpsert.accept(result);
+            return result.created();
+        }, Business::getBusinessName);
+    }
+
     public void runTenders(UUID jobId, UUID dataSourceId, String sourceName, RecordStream<Tender> stream, ImportReport report) {
         runGeneric(jobId, dataSourceId, sourceName, stream, report,
                 tenderService::importTender, t -> t.getExternalId() + " " + t.getTitle());
@@ -100,7 +110,8 @@ public class ImportJobRunner {
                 c.errors.append(String.format("... and %d more failed records%n", c.failed - MAX_ERROR_LINES));
             }
 
-            jobTracker.complete(jobId, c.processed, c.added, c.updated, c.errors.toString(), report.asText());
+            report.fireComplete(new ImportReport.Totals(c.processed, c.added, c.updated, c.failed));
+            jobTracker.complete(jobId, c.processed, c.added, c.updated, c.errors.toString(), report.asText(), report.skipped(), report.invalid());
             jobTracker.updateDataSourceSync(dataSourceId, c.added + c.updated);
             log.info("Import job {} completed for {}: {} processed, {} added, {} updated, {} failed",
                     jobId, sourceName, c.processed, c.added, c.updated, c.failed);

@@ -102,6 +102,46 @@ app:
   scheduler:
     enabled: true
 
+  sse:
+    heartbeat-ms: 25000   # comment line keeping the event stream alive
+    timeout-ms: 3600000   # emitter lifetime; EventSource reconnects transparently (Last-Event-ID replay)
+
+  claims:
+    ttl-minutes: 10       # a claimed lead is released after this unless refreshed
+    sweep-ms: 30000
+
+  mail:
+    # Outgoing SMTP for follow-up emails. Nothing is sent unless SMTP_HOST is set
+    # (GET /api/email/status reports configured: false and sends return 503).
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    from: ${MAIL_FROM:}            # defaults to SMTP_USERNAME
+    from-name: ${MAIL_FROM_NAME:EcoNet Propreté}
+    starttls: ${SMTP_STARTTLS:true}
+    rate-limit-per-hour: 20        # per user
+
+  website:
+    # Read-only Postgres of the public website (Supabase session pooler, sslmode=require). Nothing is
+    # imported and the "Site web – demandes" source stays unconfigured while WEBSITE_DB_URL is empty.
+    # Accepts jdbc:postgresql://host:5432/db?sslmode=require or postgresql://user:pass@host:5432/db.
+    db:
+      url: ${WEBSITE_DB_URL:}
+      username: ${WEBSITE_DB_USERNAME:}
+      password: ${WEBSITE_DB_PASSWORD:}
+    poll-minutes: ${WEBSITE_POLL_MINUTES:5}   # only polled when configured
+
+  discover:
+    # OpenStreetMap discovery (POST /api/discover/osm); ODbL: the UI must show the attribution
+    overpass-url: ${OVERPASS_URL:https://overpass-api.de/api/interpreter}
+    nominatim-url: ${NOMINATIM_URL:https://nominatim.openstreetmap.org}
+    timeout-seconds: 25
+    min-interval-ms: 1000   # 1 request/second towards each public endpoint
+
+  company:
+    name: ${COMPANY_NAME:EcoNet Propreté}
+
   geocoding:
     enabled: true
     provider: openstreetmap  # or 'google'

@@ -43,4 +43,16 @@ public class BusinessDTO {
 
     /** Source-specific facts for the caller (permit, register...), or null. */
     private Map<String, String> sourceDetails;
+
+    /** Structured facts captured during calls (see QualificationService), or null when none. */
+    private Map<String, Object> qualification;
+
+    /** 0–100: 0.5 * dataQualityScore + 50 * smoothed conversion rate of the business type. */
+    private Double priorityScore;
+
+    /** Who currently holds the claim on this lead (queue items), or null. */
+    private ClaimedBy claimedBy;
+
+    public record ClaimedBy(UUID userId, String username) {
+    }
 }

@@ -1,6 +1,7 @@
 package com.econet.leads.exception;
 
 import com.econet.leads.integration.ImportAlreadyRunningException;
+import com.econet.leads.realtime.ClaimConflictException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,25 @@ import java.util.Map;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    /** 409 with who holds the claim: {error, claimedBy: {userId, username}, expiresAt}. */
+    @ExceptionHandler(ClaimConflictException.class)
+    public ResponseEntity<Object> handleClaimConflict(ClaimConflictException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", ex.getMessage());
+        body.put("claimedBy", Map.of("userId", ex.getClaim().userId(), "username", ex.getClaim().username()));
+        body.put("expiresAt", ex.getClaim().expiresAt());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /** 409 with the existing lead: {error, duplicate: BusinessDTO}. */
+    @ExceptionHandler(DuplicateLeadException.class)
+    public ResponseEntity<Object> handleDuplicateLead(DuplicateLeadException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", ex.getMessage());
+        body.put("duplicate", ex.getDuplicate());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<Object> handleApi(ApiException ex) {

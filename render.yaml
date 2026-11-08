@@ -1,0 +1,50 @@
+# Render Blueprint: New > Blueprint > connect this repo. Values marked sync:false are asked at creation.
+# See DEPLOY.md for where each value comes from.
+services:
+  - type: web
+    name: econet-leads-api
+    runtime: docker
+    plan: free
+    region: ohio            # closest Render region to Montreal
+    branch: master
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: JAVA_TOOL_OPTIONS   # GC and stack sized for the 512 MB free instance; heap % is set in the Dockerfile
+        value: -XX:+UseSerialGC -Xss512k
+      # Required
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: ADMIN_INITIAL_PASSWORD
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      # Optional: e-mail notifications
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      # Optional: website requests import (read-only)
+      - key: WEBSITE_DB_URL
+        sync: false
+      - key: WEBSITE_DB_USERNAME
+        sync: false
+      - key: WEBSITE_DB_PASSWORD
+        sync: false

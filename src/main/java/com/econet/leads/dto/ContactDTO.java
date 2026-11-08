@@ -21,5 +21,6 @@ public class ContactDTO {
     private UUID userId;
     private String username;
     private Contact.ContactOutcome outcome;
+    private Integer durationSeconds;
     private LocalDateTime createdAt;
 }

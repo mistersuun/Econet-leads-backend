@@ -32,6 +32,33 @@ public interface BusinessRepository extends JpaRepository<Business, UUID>, JpaSp
 
     List<Business> findTop20ByPhoneNormalizedOrderByCreatedAtAsc(String phoneNormalized);
 
+    List<Business> findTop10ByBusinessNameIgnoreCaseOrderByCreatedAtAsc(String businessName);
+
+    /** Same-city leads of every type whose lower-cased name starts with the prefix (duplicate hints, see BusinessService#findDuplicates). */
+    @Query("""
+            SELECT b FROM Business b
+            WHERE b.addressCity = :city
+              AND LOWER(b.businessName) LIKE :namePrefix ESCAPE '!'
+              AND LENGTH(b.businessName) BETWEEN :minLength AND :maxLength
+            ORDER BY b.createdAt ASC
+            """)
+    List<Business> findFuzzyCandidatesAnyType(@Param("city") String city,
+                                              @Param("namePrefix") String namePrefix,
+                                              @Param("minLength") int minLength,
+                                              @Param("maxLength") int maxLength,
+                                              Pageable pageable);
+
+    @Query("""
+            SELECT b FROM Business b
+            WHERE LOWER(b.businessName) LIKE :namePrefix ESCAPE '!'
+              AND LENGTH(b.businessName) BETWEEN :minLength AND :maxLength
+            ORDER BY b.createdAt ASC
+            """)
+    List<Business> findFuzzyCandidatesAnyCity(@Param("namePrefix") String namePrefix,
+                                              @Param("minLength") int minLength,
+                                              @Param("maxLength") int maxLength,
+                                              Pageable pageable);
+
     Optional<Business> findFirstByExternalIdAndDataSourceOrderByCreatedAtAsc(String externalId, String dataSource);
 
     /**
@@ -106,6 +133,34 @@ public interface BusinessRepository extends JpaRepository<Business, UUID>, JpaSp
     List<Business> findQueueNewLeads(@Param("now") java.time.LocalDateTime now,
                                      @Param("userId") UUID userId,
                                      Pageable pageable);
+
+    /** Open leads with a follow-up before {@code before}, assigned to the user or unassigned (notifications). */
+    @Query("""
+            SELECT b FROM Business b LEFT JOIN b.assignedTo u
+            WHERE b.nextFollowUpAt IS NOT NULL AND b.nextFollowUpAt < :before
+              AND b.leadStatus NOT IN :excluded
+              AND (u IS NULL OR u.id = :userId)
+            ORDER BY b.nextFollowUpAt ASC, b.id ASC
+            """)
+    List<Business> findFollowUpsDueForUser(@Param("before") java.time.LocalDateTime before,
+                                           @Param("excluded") java.util.Collection<com.econet.leads.model.LeadStatus> excluded,
+                                           @Param("userId") UUID userId,
+                                           Pageable pageable);
+
+    /** Website requests nobody has contacted yet, assigned to the user or unassigned (inbound_request notifications). */
+    @Query("""
+            SELECT b FROM Business b LEFT JOIN b.assignedTo u
+            WHERE b.dataSource = :source AND b.contactCount = 0
+              AND b.leadStatus NOT IN :excluded
+              AND b.createdAt >= :since
+              AND (u IS NULL OR u.id = :userId)
+            ORDER BY b.createdAt DESC, b.id ASC
+            """)
+    List<Business> findUncalledBySource(@Param("source") String source,
+                                        @Param("since") java.time.LocalDateTime since,
+                                        @Param("excluded") java.util.Collection<com.econet.leads.model.LeadStatus> excluded,
+                                        @Param("userId") UUID userId,
+                                        Pageable pageable);
 
     // --- Filter options (GET /api/businesses/filters) ---
 

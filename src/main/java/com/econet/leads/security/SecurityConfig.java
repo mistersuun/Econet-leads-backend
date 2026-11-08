@@ -17,6 +17,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -63,12 +64,26 @@ public class SecurityConfig {
                         // Account creation is restricted to administrators
                         .requestMatchers("/api/auth/register").hasRole("ADMIN")
 
+                        // SSE stream: authenticated like every GET; the token may come as ?token= (see JwtAuthenticationFilter)
+                        .requestMatchers(HttpMethod.GET, "/api/events").authenticated()
+
+                        // Releasing one's own claim is a caller action, not an admin delete
+                        .requestMatchers(HttpMethod.DELETE, "/api/leads/*/claim").hasAnyRole("ADMIN", "USER")
+
+                        // A caller who started a file import follows its job (list or by id) (the rest of the job API stays admin-only)
+                        .requestMatchers(new RegexRequestMatcher("/api/scraper-jobs/[0-9a-fA-F-]{36}", "GET")).hasAnyRole("ADMIN", "USER")
+                        .requestMatchers(HttpMethod.GET, "/api/scraper-jobs").hasAnyRole("ADMIN", "USER")
+
                         // Admin-only endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/**").hasRole("ADMIN")
                         .requestMatchers("/api/scrapers/**").hasRole("ADMIN")
                         .requestMatchers("/api/scraper-jobs/**").hasRole("ADMIN")
                         .requestMatchers("/api/data-sources/**").hasRole("ADMIN")
+
+                        // Adding leads: duplicate hints, file imports and map discovery are caller tools, not read-only data
+                        .requestMatchers(HttpMethod.GET, "/api/businesses/duplicates").hasAnyRole("ADMIN", "USER")
+                        .requestMatchers("/api/imports/**", "/api/discover/**").hasAnyRole("ADMIN", "USER")
 
                         // Every role (including VIEWER) can read: leads, queue, dashboard, contacts, /api/auth/me
                         .requestMatchers(HttpMethod.GET, "/api/**").authenticated()

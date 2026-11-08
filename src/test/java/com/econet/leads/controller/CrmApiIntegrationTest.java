@@ -108,6 +108,22 @@ class CrmApiIntegrationTest {
     }
 
     @Test
+    @WithMockUser(username = "alice", roles = "USER")
+    void dueFollowUpsOrderHotStatusesBeforeOlderColdOnes() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        lead("Rappel Ancien", "Laval", "4505550901", 50, LeadStatus.CONTACTED, null, now.minusDays(5));
+        lead("Demande Site Fraîche", "Montréal", "5145550902", 50, LeadStatus.INTERESTED, null, now);
+        lead("Soumission Hier", "Laval", "4505550903", 50, LeadStatus.QUOTE_SENT, null, now.minusDays(1));
+
+        mvc.perform(get("/api/leads/queue").param("size", "10").param("followUpsOnly", "true"))
+                .andExpect(status().isOk())
+                // hot statuses first, oldest due first within each group; cold follow-ups after them
+                .andExpect(jsonPath("$[0].businessName").value("Soumission Hier"))
+                .andExpect(jsonPath("$[1].businessName").value("Demande Site Fraîche"))
+                .andExpect(jsonPath("$[2].businessName").value("Rappel Ancien"));
+    }
+
+    @Test
     void teammatesSeeEachOthersCallHistory() throws Exception {
         mvc.perform(post("/api/leads/{id}/calls", followUpDue.getId())
                         .with(user("bob").roles("USER"))
@@ -308,7 +324,7 @@ class CrmApiIntegrationTest {
         assertThat(bytes[2]).isEqualTo((byte) 0xBF);
         String csv = new String(bytes, 3, bytes.length - 3, java.nio.charset.StandardCharsets.UTF_8);
         String[] lines = csv.split("\n");
-        assertThat(lines[0]).isEqualTo("name,type,phone,email,website,street,city,postal_code,status,last_contacted,next_follow_up,quality,source");
+        assertThat(lines[0]).isEqualTo("name,type,phone,email,website,street,city,postal_code,status,last_contacted,next_follow_up,quality,source,decision_maker,current_provider,contract_ends_at,employees");
         assertThat(lines).hasSize(3);
         assertThat(lines[1]).startsWith("\"CPE Basse Qualité\"");
         assertThat(lines[2]).startsWith("\"CPE Haute Qualité\"");

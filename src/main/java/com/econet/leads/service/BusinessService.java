@@ -3,6 +3,7 @@ package com.econet.leads.service;
 import com.econet.leads.dto.BusinessDTO;
 import com.econet.leads.dto.BusinessFilterOptionsDTO;
 import com.econet.leads.exception.ApiException;
+import com.econet.leads.exception.DuplicateLeadException;
 import com.econet.leads.mapper.DtoMapper;
 import com.econet.leads.model.Business;
 import com.econet.leads.repository.BusinessRepository;
@@ -36,6 +37,7 @@ public class BusinessService {
 
     private final BusinessRepository businessRepository;
     private final DataQualityService dataQualityService;
+    private final PriorityScoreService priorityScoreService;
 
     @Transactional(readOnly = true)
     public Page<Business> findAll(Pageable pageable) {
@@ -54,12 +56,13 @@ public class BusinessService {
 
     @Transactional(readOnly = true)
     public Page<BusinessDTO> findDtos(Specification<Business> spec, Pageable pageable) {
-        return businessRepository.findAll(spec, pageable).map(DtoMapper::toDto);
+        java.util.Map<String, Double> rates = priorityScoreService.ratesByType();
+        return businessRepository.findAll(spec, pageable).map(b -> priorityScoreService.decorate(DtoMapper.toDto(b), rates));
     }
 
     @Transactional(readOnly = true)
     public Optional<BusinessDTO> findDtoById(UUID id) {
-        return businessRepository.findById(id).map(DtoMapper::toDto);
+        return businessRepository.findById(id).map(b -> priorityScoreService.decorate(DtoMapper.toDto(b)));
     }
 
     /**
@@ -101,6 +104,104 @@ public class BusinessService {
         business.setDataQualityScore(qualityScore);
 
         return businessRepository.save(business);
+    }
+
+    /**
+     * Creates a lead typed in by a person. Only an EXACT duplicate (same name in the same city, or the
+     * same phone in the same city) is refused with {@link DuplicateLeadException}; fuzzy look-alikes are
+     * only hints (see {@link #findDuplicates}). {@code force} skips the check.
+     */
+    @Transactional
+    public Business createManual(Business business, boolean force) {
+        normalizeBusinessData(business);
+        if (!force) {
+            Optional<Business> exact = findExactDuplicate(business);
+            if (exact.isPresent()) {
+                throw new DuplicateLeadException("Ce lead existe déjà : " + exact.get().getBusinessName()
+                        + (exact.get().getAddressCity() != null ? " (" + exact.get().getAddressCity() + ")" : ""),
+                        priorityScoreService.decorate(DtoMapper.toDto(exact.get())));
+            }
+        }
+        business.setDataQualityScore(dataQualityService.calculateQualityScore(business));
+        return businessRepository.save(business);
+    }
+
+    /**
+     * Id of the existing lead an external candidate (OpenStreetMap...) would duplicate: same name in the
+     * same city, or same phone in the same city. Only exact matches: this flags "existe déjà" in lists.
+     */
+    @Transactional(readOnly = true)
+    public Optional<UUID> findExistingLeadId(String name, String phone, String city) {
+        Business probe = new Business();
+        probe.setBusinessName(name);
+        probe.setPhone(phone);
+        probe.setAddressCity(city);
+        normalizeBusinessData(probe);
+        return findExactDuplicate(probe).map(Business::getId);
+    }
+
+    /** Same name in the same city, or same normalized phone in the same city (both cities null counts as same). */
+    Optional<Business> findExactDuplicate(Business candidate) {
+        String city = candidate.getAddressCity();
+        if (candidate.getBusinessName() != null && city != null) {
+            Optional<Business> byName = businessRepository
+                    .findTop10ByBusinessNameAndAddressCityOrderByCreatedAtAsc(candidate.getBusinessName(), city)
+                    .stream().findFirst();
+            if (byName.isPresent()) {
+                return byName;
+            }
+        }
+        String phone = PhoneFormatter.normalize(candidate.getPhone());
+        if (phone != null && !phone.isEmpty()) {
+            return businessRepository.findTop20ByPhoneNormalizedOrderByCreatedAtAsc(phone).stream()
+                    .filter(b -> b.getAddressCity() == null ? city == null : b.getAddressCity().equalsIgnoreCase(city))
+                    .findFirst();
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * "Existe déjà ?" hints while typing: up to {@code limit} leads matching by the same rules as
+     * import deduplication, strongest first: exact name (+ city when given), same phone (compatible
+     * city), fuzzy name (similarity above {@value #FUZZY_THRESHOLD}, same city when given).
+     */
+    @Transactional(readOnly = true)
+    public List<BusinessDTO> findDuplicates(String name, String phone, String city, int limit) {
+        java.util.Map<UUID, Business> found = new java.util.LinkedHashMap<>();
+        String cleanName = name == null ? null : name.trim();
+        String cleanCity = city == null || city.isBlank() ? null : AddressNormalizer.normalizeCity(city.trim());
+        String normalizedPhone = PhoneFormatter.normalize(phone == null || phone.isBlank() ? null : phone);
+
+        if (cleanName != null && !cleanName.isEmpty()) {
+            List<Business> exact = cleanCity != null
+                    ? businessRepository.findTop10ByBusinessNameAndAddressCityOrderByCreatedAtAsc(cleanName, cleanCity)
+                    : businessRepository.findTop10ByBusinessNameIgnoreCaseOrderByCreatedAtAsc(cleanName);
+            exact.forEach(b -> found.putIfAbsent(b.getId(), b));
+        }
+        if (normalizedPhone != null && normalizedPhone.length() >= 10) {
+            businessRepository.findTop20ByPhoneNormalizedOrderByCreatedAtAsc(normalizedPhone).stream()
+                    .filter(b -> citiesCompatible(cleanCity, b.getAddressCity()))
+                    .forEach(b -> found.putIfAbsent(b.getId(), b));
+        }
+        if (cleanName != null && cleanName.length() >= FUZZY_PREFIX_LENGTH && found.size() < limit) {
+            String lower = cleanName.toLowerCase(Locale.ROOT);
+            int len = lower.length();
+            int minLength = (int) Math.floor(len * FUZZY_THRESHOLD);
+            int maxLength = (int) Math.ceil(len / FUZZY_THRESHOLD);
+            String likePattern = escapeLike(lower.substring(0, FUZZY_PREFIX_LENGTH)) + "%";
+            PageRequest page = PageRequest.of(0, FUZZY_MAX_CANDIDATES);
+            List<Business> candidates = cleanCity != null
+                    ? businessRepository.findFuzzyCandidatesAnyType(cleanCity, likePattern, minLength, maxLength, page)
+                    : businessRepository.findFuzzyCandidatesAnyCity(likePattern, minLength, maxLength, page);
+            for (Business b : candidates) {
+                if (StringSimilarity.calculate(cleanName, b.getBusinessName()) > FUZZY_THRESHOLD) {
+                    found.putIfAbsent(b.getId(), b);
+                }
+            }
+        }
+        java.util.Map<String, Double> rates = priorityScoreService.ratesByType();
+        return found.values().stream().limit(limit)
+                .map(b -> priorityScoreService.decorate(DtoMapper.toDto(b), rates)).toList();
     }
 
     @Transactional
@@ -226,6 +327,22 @@ public class BusinessService {
         // Create new business
         business.setDataQualityScore(dataQualityService.calculateQualityScore(business));
         return new UpsertResult(businessRepository.save(business), true);
+    }
+
+    /**
+     * Would {@link #importRecord} merge this candidate into an existing lead (same external id, or one
+     * of the duplicate rules)? Used by file imports that must skip duplicates instead of updating them.
+     * Normalizes the candidate in place, as importRecord does.
+     */
+    @Transactional(readOnly = true)
+    public boolean existsDuplicate(Business candidate) {
+        normalizeBusinessData(candidate);
+        if (candidate.getExternalId() != null && candidate.getDataSource() != null
+                && businessRepository.findFirstByExternalIdAndDataSourceOrderByCreatedAtAsc(
+                        candidate.getExternalId(), candidate.getDataSource()).isPresent()) {
+            return true;
+        }
+        return findDuplicate(candidate).isPresent();
     }
 
     /**

@@ -50,6 +50,8 @@ public final class DtoMapper {
         dto.setEstimatedValue(business.getEstimatedValue());
         dto.setSourceDetails(business.getSourceDetails() == null || business.getSourceDetails().isEmpty()
                 ? null : new java.util.LinkedHashMap<>(business.getSourceDetails()));
+        dto.setQualification(business.getQualification() == null || business.getQualification().isEmpty()
+                ? null : new java.util.LinkedHashMap<>(business.getQualification()));
         return dto;
     }
 
@@ -68,6 +70,7 @@ public final class DtoMapper {
         dto.setUserId(contact.getUser().getId());
         dto.setUsername(contact.getUser().getUsername());
         dto.setOutcome(contact.getOutcome());
+        dto.setDurationSeconds(contact.getDurationSeconds());
         dto.setCreatedAt(contact.getCreatedAt());
         return dto;
     }

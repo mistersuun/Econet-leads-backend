@@ -55,6 +55,10 @@ public class Contact {
     @Column(length = 50)
     private ContactOutcome outcome;
 
+    /** Duration of the call in seconds (APPEL contacts), when the caller timed it (V9). */
+    @Column(name = "duration_seconds")
+    private Integer durationSeconds;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
