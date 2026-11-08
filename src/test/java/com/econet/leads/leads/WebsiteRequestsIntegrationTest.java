@@ -146,7 +146,7 @@ class WebsiteRequestsIntegrationTest {
         assertThat(marie.getAddressStreet()).isEqualTo("261 Rue Fleury");
         assertThat(marie.getAddressCity()).isEqualTo("Montréal");
         assertThat(marie.getSourceDetails()).containsEntry("Service", "Ménage régulier")
-                .containsEntry("Date souhaitée", "2026-11-20 09:00").containsEntry("Fréquence", "bi-weekly")
+                .containsEntry("Date souhaitée", "2026-11-20 09:00").containsEntry("Fréquence", "Aux 2 semaines")
                 .containsEntry("Superficie", "1500").containsEntry("Options", "fenêtres, four")
                 .containsEntry("Estimation", "261 $").containsEntry("Instructions", "Chien dans la maison")
                 .containsEntry("Langue", "fr");

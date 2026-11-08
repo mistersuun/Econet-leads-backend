@@ -129,7 +129,7 @@ public class WebsiteRequestsImporter {
         Map<String, String> details = new LinkedHashMap<>();
         put(details, "Service", str(rs, "service_name"));
         put(details, "Date souhaitée", join(" ", str(rs, "preferred_date"), str(rs, "preferred_time")));
-        put(details, "Fréquence", frequency);
+        put(details, "Fréquence", frequencyLabel(frequency));
         put(details, "Superficie", str(rs, "property_size"));
         put(details, "Options", join(", ", list(rs, "additional_services").toArray(new String[0])));
         put(details, "Estimation", total != null ? total.stripTrailingZeros().toPlainString() + " $" : null);
@@ -213,6 +213,19 @@ public class WebsiteRequestsImporter {
         };
         Boolean done = since != null ? jdbc.query(sql, extractor, since) : jdbc.query(sql, extractor);
         return !Boolean.FALSE.equals(done);
+    }
+
+    /** French label for the CRM; unknown values are kept as-is. */
+    static String frequencyLabel(String frequency) {
+        String wanted = frequencyWanted(frequency);
+        if (wanted == null) return frequency;
+        return switch (wanted) {
+            case "weekly" -> "Hebdomadaire";
+            case "bi-weekly" -> "Aux 2 semaines";
+            case "monthly" -> "Mensuel";
+            case "one-time" -> "Une fois";
+            default -> frequency;
+        };
     }
 
     static String frequencyWanted(String frequency) {
