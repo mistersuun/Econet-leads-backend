@@ -1,6 +1,7 @@
 package com.econet.leads.controller;
 
 import com.econet.leads.dto.TargetsDTO;
+import com.econet.leads.dto.UserSummaryDTO;
 import com.econet.leads.exception.ApiException;
 import com.econet.leads.repository.UserRepository;
 import com.econet.leads.service.TargetsService;
@@ -23,6 +24,20 @@ public class UserController {
     private final TargetsService targetsService;
 
     private final UserRepository userRepository;
+
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "List users with their daily targets (ADMIN)")
+    public ResponseEntity<java.util.List<UserSummaryDTO>> list() {
+        return ResponseEntity.ok(userRepository.findAll().stream()
+                .sorted(java.util.Comparator.comparing(u -> u.getUsername().toLowerCase(java.util.Locale.ROOT)))
+                .map(u -> {
+                    TargetsDTO.Targets t = TargetsService.of(u);
+                    return new UserSummaryDTO(u.getId(), u.getUsername(), u.getEmail(), u.getRole().name(),
+                            !Boolean.FALSE.equals(u.getActive()), t.callTarget(), t.conversationTarget(), u.getCreatedAt());
+                })
+                .toList());
+    }
 
     @GetMapping("/{id}/targets")
     @PreAuthorize("hasRole('ADMIN')")

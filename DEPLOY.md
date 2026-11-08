@@ -49,7 +49,7 @@ Set **CORS_ALLOWED_ORIGINS** to the CRM's Netlify address, for example `https://
 ## 6. First use
 
 1. Open the CRM and log in as **admin** with ADMIN_INITIAL_PASSWORD (if you left it empty, the server logs a generated password: Render → **Logs**, search "ADMIN_INITIAL_PASSWORD"). Change it right away.
-2. Create an account for each caller (admin screen → users). Give them the role USER.
+2. Create an account for each caller: **Réglages → Équipe → Ajouter un membre** (username, e-mail, password, role USER). The same screen sets each caller's daily targets.
 3. Run imports from the Sources / Imports screen (for example "Site web – demandes"). Each run is logged.
 4. **A failed import** shows an error message in the import log. Common causes: wrong database value (WEBSITE_DB_*), the other database is unreachable or the password changed, or the file has the wrong columns. Fix the value in Render → Environment (the server restarts) and run the import again. Nothing is lost; imports can be repeated safely.
 

@@ -682,6 +682,12 @@ class CallFloorApiIntegrationTest {
         mvc.perform(get("/api/users/{id}/targets", bob.getId()).with(ALICE)).andExpect(status().isForbidden());
         mvc.perform(get("/api/users/{id}/targets", bob.getId()).with(ADMIN))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.callTarget").value(30)).andExpect(jsonPath("$.conversationTarget").exists());
+        mvc.perform(get("/api/users").with(ALICE)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/users").with(ADMIN)).andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id=='" + bob.getId() + "')].username").value(bob.getUsername()))
+                .andExpect(jsonPath("$[?(@.id=='" + bob.getId() + "')].callTarget").value(30))
+                .andExpect(jsonPath("$[?(@.id=='" + bob.getId() + "')].active").value(true))
+                .andExpect(jsonPath("$[0].conversationTarget").exists());
         mvc.perform(get("/api/users/{id}/targets", java.util.UUID.randomUUID()).with(ADMIN)).andExpect(status().isNotFound());
 
         // team

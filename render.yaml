@@ -13,8 +13,8 @@ services:
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
-      - key: JAVA_TOOL_OPTIONS   # read automatically by the JVM; sized for the 512 MB free instance
-        value: -XX:MaxRAMPercentage=70 -XX:+UseSerialGC -Xss512k
+      - key: JAVA_TOOL_OPTIONS   # GC and stack sized for the 512 MB free instance; heap % is set in the Dockerfile
+        value: -XX:+UseSerialGC -Xss512k
       # Required
       - key: DB_URL
         sync: false
