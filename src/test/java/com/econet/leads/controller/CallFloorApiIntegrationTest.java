@@ -679,6 +679,10 @@ class CallFloorApiIntegrationTest {
         mvc.perform(put("/api/users/{id}/targets", bob.getId()).with(ADMIN).contentType(MediaType.APPLICATION_JSON).content("{\"callTarget\":30}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.callTarget").value(30));
         mvc.perform(get("/api/me/targets").with(BOB)).andExpect(jsonPath("$.callTarget").value(30));
+        mvc.perform(get("/api/users/{id}/targets", bob.getId()).with(ALICE)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/users/{id}/targets", bob.getId()).with(ADMIN))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.callTarget").value(30)).andExpect(jsonPath("$.conversationTarget").exists());
+        mvc.perform(get("/api/users/{id}/targets", java.util.UUID.randomUUID()).with(ADMIN)).andExpect(status().isNotFound());
 
         // team
         mvc.perform(post("/api/leads/{id}/claim", b.getId()).with(BOB)).andExpect(status().isOk());

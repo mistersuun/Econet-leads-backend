@@ -1,6 +1,8 @@
 package com.econet.leads.controller;
 
 import com.econet.leads.dto.TargetsDTO;
+import com.econet.leads.exception.ApiException;
+import com.econet.leads.repository.UserRepository;
 import com.econet.leads.service.TargetsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,6 +21,16 @@ import java.util.UUID;
 public class UserController {
 
     private final TargetsService targetsService;
+
+    private final UserRepository userRepository;
+
+    @GetMapping("/{id}/targets")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "A user's daily targets (ADMIN)")
+    public ResponseEntity<TargetsDTO.Targets> getTargets(@PathVariable UUID id) {
+        return ResponseEntity.ok(TargetsService.of(userRepository.findById(id)
+                .orElseThrow(() -> ApiException.notFound("User not found: " + id))));
+    }
 
     @PutMapping("/{id}/targets")
     @PreAuthorize("hasRole('ADMIN')")
