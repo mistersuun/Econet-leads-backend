@@ -47,6 +47,9 @@ public class BusinessDTO {
     /** Structured facts captured during calls (see QualificationService), or null when none. */
     private Map<String, Object> qualification;
 
+    /** Google Places data (rating, reviews, hours, cleanliness quotes...), or null when never enriched. */
+    private Map<String, Object> places;
+
     /** 0–100: 0.5 * dataQualityScore + 50 * smoothed conversion rate of the business type. */
     private Double priorityScore;
 

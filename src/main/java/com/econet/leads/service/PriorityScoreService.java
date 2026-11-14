@@ -45,8 +45,19 @@ public class PriorityScoreService {
         return decorate(dto, ratesByType());
     }
 
+    /**
+     * Leads whose Google reviews mention cleanliness problems (places.cleanliness_signals) are warmer:
+     * +10 points. The call queue applies the same bonus in SQL, see LeadService#priorityExpression.
+     */
+    public static final double CLEANLINESS_BONUS = 10.0;
+
+    public static boolean hasCleanlinessSignals(Map<String, Object> places) {
+        return places != null && places.get("cleanlinessSignals") instanceof java.util.Collection<?> c && !c.isEmpty();
+    }
+
     public BusinessDTO decorate(BusinessDTO dto, Map<String, Double> rates) {
-        dto.setPriorityScore(score(dto.getDataQualityScore(), rates.getOrDefault(dto.getBusinessType(), DEFAULT_RATE)));
+        double score = score(dto.getDataQualityScore(), rates.getOrDefault(dto.getBusinessType(), DEFAULT_RATE));
+        dto.setPriorityScore(hasCleanlinessSignals(dto.getPlaces()) ? score + CLEANLINESS_BONUS : score);
         return dto;
     }
 }

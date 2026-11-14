@@ -52,6 +52,7 @@ public final class DtoMapper {
                 ? null : new java.util.LinkedHashMap<>(business.getSourceDetails()));
         dto.setQualification(business.getQualification() == null || business.getQualification().isEmpty()
                 ? null : new java.util.LinkedHashMap<>(business.getQualification()));
+        dto.setPlaces(com.econet.leads.service.PlacesService.exposed(business.getPlaces()));
         return dto;
     }
 

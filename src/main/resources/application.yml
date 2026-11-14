@@ -139,6 +139,11 @@ app:
     timeout-seconds: 25
     min-interval-ms: 1000   # 1 request/second towards each public endpoint
 
+  places:
+    # Google Places API (New) enrichment of leads; optional, the CRM shows "non configuré" while the key is empty.
+    api-key: ${GOOGLE_PLACES_API_KEY:}
+    daily-limit: ${PLACES_DAILY_LIMIT:100}   # calls per day (Montreal time)
+
   company:
     name: ${COMPANY_NAME:EcoNet Propreté}
 
