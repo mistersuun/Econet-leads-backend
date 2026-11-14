@@ -40,7 +40,7 @@ Nothing is sent while SMTP_HOST is empty.
 The CRM can pull quote and contact requests from the website's own Supabase project. It only **reads**; it never writes there.
 
 1. Open the **website's** Supabase project → **Connect → Session pooler**.
-2. Fill WEBSITE_DB_URL (`jdbc:postgresql://aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require`), WEBSITE_DB_USERNAME (`postgres.<project-ref>`) and WEBSITE_DB_PASSWORD, the same way as in step 1. A dedicated read-only database user is safer if you know how to create one.
+2. Fill WEBSITE_DB_URL (`jdbc:postgresql://aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require`), WEBSITE_DB_USERNAME (`postgres.<project-ref>`) and WEBSITE_DB_PASSWORD, the same way as in step 1. A dedicated read-only database user is safer if you know how to create one. The CRM also imports the website's optional `estimate_requests` table (visitors who asked to receive their estimate by email) once `supabase/estimate-requests.sql` has been run on the website's database; until then that table is skipped. If you use a dedicated read-only user, grant it `SELECT` on `estimate_requests` too.
 
 ## 5. Linking the web page (CORS)
 
