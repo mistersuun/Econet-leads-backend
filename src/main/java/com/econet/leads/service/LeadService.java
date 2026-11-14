@@ -268,6 +268,7 @@ public class LeadService {
         contact.setContactPerson(trimToNull(request.getContactPerson()));
         contact.setNotes(trimToNull(request.getNotes()));
         contact.setDurationSeconds(request.getDurationSeconds());
+        contact.setObjections(cleanObjections(request.getObjections()));
         contact.setNextActionDate(followUp);
         contact.setNextAction(followUp != null ? "Rappel" : null);
         contact = contactRepository.saveAndFlush(contact); // flush so createdAt is populated in the response
@@ -601,6 +602,19 @@ public class LeadService {
             case DO_NOT_CALL -> Contact.ContactOutcome.DO_NOT_CALL;
             case NEW, CONTACTED -> null;
         };
+    }
+
+    /** Trims, drops blanks and duplicates (case-insensitive); null when nothing is left. */
+    static List<String> cleanObjections(List<String> raw) {
+        if (raw == null) return null;
+        List<String> result = new ArrayList<>();
+        for (String s : raw) {
+            String t = trimToNull(s);
+            if (t != null && result.stream().noneMatch(t::equalsIgnoreCase)) {
+                result.add(t);
+            }
+        }
+        return result.isEmpty() ? null : result;
     }
 
     private static String trimToNull(String s) {

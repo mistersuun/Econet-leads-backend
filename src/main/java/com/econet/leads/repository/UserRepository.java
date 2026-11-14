@@ -20,5 +20,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     boolean existsByRoleAndActiveTrue(User.UserRole role);
 
+    /** Recipients of the Monday coaching email. */
+    java.util.List<User> findByActiveTrueAndWeeklyReportTrueAndRoleIn(java.util.Collection<User.UserRole> roles);
+
     Optional<User> findFirstByRoleAndActiveTrueOrderByCreatedAtAsc(User.UserRole role);
 }
