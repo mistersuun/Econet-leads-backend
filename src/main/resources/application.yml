@@ -142,6 +142,10 @@ app:
   company:
     name: ${COMPANY_NAME:EcoNet Propreté}
 
+  reviews:
+    # Google review link sent to clients after the first cleaning (clients page). Optional.
+    google-url: ${GOOGLE_REVIEW_URL:}
+
   geocoding:
     enabled: true
     provider: openstreetmap  # or 'google'

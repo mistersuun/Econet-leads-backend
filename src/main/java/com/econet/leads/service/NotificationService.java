@@ -51,6 +51,10 @@ public class NotificationService {
     private final ClaimRegistry claimRegistry;
     private final Clock clock;
 
+    /** contract_renewal / review_request_due / visit_due; field-injected to keep the constructor stable. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ClientService clientService;
+
     @Transactional(readOnly = true)
     public List<NotificationDTO> forUser(User user) {
         LocalDateTime now = LocalDateTime.now(clock);
@@ -106,6 +110,10 @@ public class NotificationService {
                     "Fermeture dans " + hours + " h (" + WHEN.format(t.getClosingAt()) + ")"
                             + (t.getBuyer() != null ? " · " + t.getBuyer() : ""),
                     null, t.getId(), t.getClosingAt()));
+        }
+
+        if (clientService != null) {
+            result.addAll(clientService.notificationsFor(user));
         }
 
         result.sort(Comparator.comparing(NotificationDTO::at));

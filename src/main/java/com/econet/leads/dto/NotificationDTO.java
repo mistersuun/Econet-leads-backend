@@ -15,4 +15,8 @@ public record NotificationDTO(String id, String kind, String title, String body,
     public static final String TENDER_CLOSING = "tender_closing";
     /** A request from the website that nobody has called yet. */
     public static final String INBOUND_REQUEST = "inbound_request";
+    // Clients after the sale (the lead id is the client's business)
+    public static final String CONTRACT_RENEWAL = "contract_renewal";
+    public static final String REVIEW_REQUEST_DUE = "review_request_due";
+    public static final String VISIT_DUE = "visit_due";
 }
