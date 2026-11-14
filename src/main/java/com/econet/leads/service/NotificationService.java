@@ -50,6 +50,7 @@ public class NotificationService {
     private final TenderRepository tenderRepository;
     private final ClaimRegistry claimRegistry;
     private final Clock clock;
+    private final BookingNotificationSource bookingNotifications;
 
     @Transactional(readOnly = true)
     public List<NotificationDTO> forUser(User user) {
@@ -107,6 +108,8 @@ public class NotificationService {
                             + (t.getBuyer() != null ? " · " + t.getBuyer() : ""),
                     null, t.getId(), t.getClosingAt()));
         }
+
+        result.addAll(bookingNotifications.forUser(user));
 
         result.sort(Comparator.comparing(NotificationDTO::at));
         return result.size() > MAX_ITEMS ? result.subList(0, MAX_ITEMS) : result;

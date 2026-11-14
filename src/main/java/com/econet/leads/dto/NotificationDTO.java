@@ -15,4 +15,8 @@ public record NotificationDTO(String id, String kind, String title, String body,
     public static final String TENDER_CLOSING = "tender_closing";
     /** A request from the website that nobody has called yet. */
     public static final String INBOUND_REQUEST = "inbound_request";
+    /** A prospect accepted a quote through its public link (P5). */
+    public static final String QUOTE_ACCEPTED = "quote_accepted";
+    /** A prospect booked a visit through a booking link (P5). */
+    public static final String VISIT_BOOKED = "visit_booked";
 }

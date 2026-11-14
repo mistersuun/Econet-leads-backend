@@ -71,6 +71,7 @@ public class EmailService {
     private final EmailRateLimiter rateLimiter;
     private final Clock clock;
     private final String companyName;
+    private final LinkPlaceholders linkPlaceholders;
 
     public EmailService(ObjectProvider<JavaMailSender> mailSender,
                         MailSettings settings,
@@ -80,7 +81,8 @@ public class EmailService {
                         PricingService pricingService,
                         EmailRateLimiter rateLimiter,
                         Clock clock,
-                        @Value("${app.company.name:EcoNet Propreté}") String companyName) {
+                        @Value("${app.company.name:EcoNet Propreté}") String companyName,
+                        LinkPlaceholders linkPlaceholders) {
         this.mailSender = mailSender;
         this.settings = settings;
         this.templateRepository = templateRepository;
@@ -90,6 +92,7 @@ public class EmailService {
         this.rateLimiter = rateLimiter;
         this.clock = clock;
         this.companyName = companyName;
+        this.linkPlaceholders = linkPlaceholders;
     }
 
     // ------------------------------------------------------------------ status / templates
@@ -248,12 +251,14 @@ public class EmailService {
             values.put("estimateTotal", "");
         }
 
+        values.putAll(linkPlaceholders.forLead(lead.getId()));
+
         String to = request.getTo() != null && !request.getTo().isBlank() ? request.getTo().trim()
                 : firstNonBlank(QualificationService.text(qualification, "email"), lead.getEmail());
         if (to != null && !to.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+")) {
             throw ApiException.badRequest("'" + to + "' is not a valid email address");
         }
-        return new Rendered(tidy(substitute(template.getSubject(), values)), tidy(substitute(template.getBody(), values)), to, language);
+        return new Rendered(tidy(substitute(template.getSubject(), values)), tidy(substitute(dropEmptyLinkLines(template.getBody(), values), values)), to, language);
     }
 
     static String substitute(String text, Map<String, String> values) {
@@ -263,6 +268,27 @@ public class EmailService {
             m.appendReplacement(sb, Matcher.quoteReplacement(values.getOrDefault(m.group(1), "")));
         }
         m.appendTail(sb);
+        return sb.toString();
+    }
+
+    /** A line that carries a {{quoteLink}} / {{bookingLink}} placeholder with no value ("Réserver : {{bookingLink}}") is removed whole. */
+    static String dropEmptyLinkLines(String text, Map<String, String> values) {
+        StringBuilder sb = new StringBuilder();
+        for (String line : text.split("\\n", -1)) {
+            boolean empty = false;
+            Matcher m = PLACEHOLDER.matcher(line);
+            while (m.find()) {
+                String key = m.group(1);
+                if ((LinkPlaceholders.QUOTE_LINK.equals(key) || LinkPlaceholders.BOOKING_LINK.equals(key))
+                        && values.getOrDefault(key, "").isEmpty()) {
+                    empty = true;
+                }
+            }
+            if (!empty) {
+                if (sb.length() > 0) sb.append('\n');
+                sb.append(line);
+            }
+        }
         return sb.toString();
     }
 
