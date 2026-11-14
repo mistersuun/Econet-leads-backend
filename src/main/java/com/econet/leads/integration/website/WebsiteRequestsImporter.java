@@ -9,6 +9,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.stereotype.Component;
@@ -48,6 +49,7 @@ public class WebsiteRequestsImporter {
     public static final String TYPE_RESIDENTIAL = "Demande web – résidentiel";
     public static final String TYPE_COMMERCIAL = "Demande web – commercial";
     public static final String TYPE_CONTACT = "Demande web – contact";
+    public static final String TYPE_ESTIMATE = "Demande web – estimation";
     static final int MAX_ROWS_PER_TABLE = 5000;
     private static final Pattern EMAIL = Pattern.compile("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
 
@@ -58,6 +60,9 @@ public class WebsiteRequestsImporter {
     private final WebsiteDb websiteDb;
     private final ObjectMapper mapper;
     private final Clock clock;
+
+    /** The estimate_requests table is optional (created by the website's supabase/estimate-requests.sql): log its absence once. */
+    private final java.util.concurrent.atomic.AtomicBoolean estimateTableMissingLogged = new java.util.concurrent.atomic.AtomicBoolean();
 
     /** Inbound info of the leads of the current run, keyed by externalId. */
     private final Map<String, Inbound> inboundByExternalId = new java.util.concurrent.ConcurrentHashMap<>();
@@ -75,19 +80,25 @@ public class WebsiteRequestsImporter {
         Timestamp since = lastSync == null ? null : Timestamp.valueOf(lastSync.minusDays(1));
         return sink -> {
             report.note(since == null ? "Première synchronisation : toutes les demandes" : "Demandes créées après " + since.toLocalDateTime());
-            int[] counts = new int[2];
+            int[] counts = new int[3];
             JdbcTemplate jdbc = websiteDb.jdbc();
             boolean more = readBookings(jdbc, since, b -> {
                 counts[0]++;
                 return sink.test(b);
             });
             if (more) {
-                readContacts(jdbc, since, b -> {
+                more = readContacts(jdbc, since, b -> {
                     counts[1]++;
                     return sink.test(b);
                 });
             }
-            report.note(counts[0] + " réservations et " + counts[1] + " messages de contact lus");
+            if (more) {
+                readEstimates(jdbc, since, b -> {
+                    counts[2]++;
+                    return sink.test(b);
+                });
+            }
+            report.note(counts[0] + " réservations, " + counts[1] + " messages de contact et " + counts[2] + " demandes d'estimation lus");
         };
     }
 
@@ -183,6 +194,114 @@ public class WebsiteRequestsImporter {
 
         inboundByExternalId.put(b.getExternalId(), new Inbound("contact", message != null ? message : "Message reçu sur le site"));
         return b;
+    }
+
+    // ------------------------------------------------------------------ estimate_requests
+
+    /**
+     * Visitors who asked to receive their estimate by email (consent is enforced by the table). The table is
+     * created by the website's supabase/estimate-requests.sql; when it does not exist yet the source is skipped.
+     */
+    private boolean readEstimates(JdbcTemplate jdbc, Timestamp since, Predicate<Business> sink) {
+        String sql = "SELECT id, email, first_name, phone, service, area, property_type, add_ons, frequency, total, language, "
+                + "created_at FROM estimate_requests WHERE consent = TRUE" + (since != null ? " AND created_at > ?" : "")
+                + " ORDER BY created_at ASC LIMIT " + MAX_ROWS_PER_TABLE;
+        try {
+            return query(jdbc, sql, since, rs -> sink.test(toEstimate(rs)));
+        } catch (BadSqlGrammarException e) {
+            // Postgres 42P01 / H2 table not found: the table has not been created on the website side yet
+            if (estimateTableMissingLogged.compareAndSet(false, true)) {
+                log.info("Website table estimate_requests not found: estimate requests are skipped until supabase/estimate-requests.sql is run");
+            }
+            return true;
+        }
+    }
+
+    Business toEstimate(ResultSet rs) throws SQLException {
+        String id = str(rs, "id");
+        String first = str(rs, "first_name");
+        String email = str(rs, "email");
+        BigDecimal total = decimal(rs, "total");
+        String frequency = str(rs, "frequency");
+        String language = str(rs, "language");
+
+        Business b = base("estimate:" + id);
+        b.setBusinessName(truncate(first != null ? first : (email != null ? email : "Estimation web " + id), 255));
+        b.setBusinessType(TYPE_ESTIMATE);
+        b.setPhone(truncate(str(rs, "phone"), 20));
+        b.setEmail(validEmail(email));
+        b.setEstimatedValue(total != null && total.signum() > 0 && total.compareTo(new BigDecimal("99999999")) < 0 ? total : null);
+
+        List<String> addOns = new ArrayList<>();
+        for (String a : list(rs, "add_ons")) addOns.add(addOnLabel(a));
+
+        Map<String, String> details = new LinkedHashMap<>();
+        put(details, "Service", serviceLabel(str(rs, "service")));
+        put(details, "Superficie", areaLabel(str(rs, "area")));
+        put(details, "Type", propertyTypeLabel(str(rs, "property_type")));
+        put(details, "Options", join(", ", addOns.toArray(new String[0])));
+        put(details, "Fréquence", frequencyLabel(frequency));
+        put(details, "Estimation", total != null && total.signum() > 0 ? total.stripTrailingZeros().toPlainString() + " $" : "Devis personnalisé");
+        put(details, "Langue", language);
+        b.setSourceDetails(details);
+
+        Map<String, Object> qualification = new LinkedHashMap<>();
+        if (validEmail(email) != null) qualification.put("email", validEmail(email));
+        String lang = language == null ? null : language.toLowerCase(Locale.ROOT);
+        if ("fr".equals(lang) || "en".equals(lang)) qualification.put("language", lang);
+        String wanted = frequencyWanted(frequency);
+        if (wanted != null) qualification.put("frequencyWanted", wanted);
+        b.setQualification(qualification.isEmpty() ? null : qualification);
+
+        inboundByExternalId.put(b.getExternalId(), new Inbound("estimate", "Estimation demandée sur le site"));
+        return b;
+    }
+
+    /** French labels of the estimator's ids (src/app/shared/pricing.ts on the website); unknown values are kept as-is. */
+    static String serviceLabel(String id) {
+        if (id == null) return null;
+        return switch (id) {
+            case "residential" -> "Résidentiel";
+            case "commercial" -> "Commercial";
+            case "deep_cleaning" -> "Grand ménage";
+            case "post_construction" -> "Après-construction";
+            default -> id;
+        };
+    }
+
+    static String areaLabel(String id) {
+        if (id == null) return null;
+        return switch (id) {
+            case "under_800" -> "Moins de 800 pi²";
+            case "800_1500" -> "800 à 1500 pi²";
+            case "1500_2500" -> "1500 à 2500 pi²";
+            case "over_2500" -> "Plus de 2500 pi²";
+            default -> id;
+        };
+    }
+
+    static String propertyTypeLabel(String id) {
+        if (id == null) return null;
+        return switch (id) {
+            case "apartment" -> "Appartement / condo";
+            case "house" -> "Maison unifamiliale";
+            case "townhouse" -> "Maison en rangée";
+            case "office" -> "Bureau";
+            case "retail" -> "Commerce de détail";
+            default -> id;
+        };
+    }
+
+    static String addOnLabel(String id) {
+        if (id == null) return null;
+        return switch (id) {
+            case "windows" -> "Vitres intérieures";
+            case "oven" -> "Four";
+            case "fridge" -> "Réfrigérateur";
+            case "basement" -> "Sous-sol";
+            case "garage" -> "Garage";
+            default -> id;
+        };
     }
 
     // ------------------------------------------------------------------ helpers
