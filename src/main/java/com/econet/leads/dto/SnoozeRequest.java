@@ -11,9 +11,9 @@ import java.time.LocalDateTime;
 public class SnoozeRequest {
 
     /** New follow-up (America/Montreal wall time). */
-    @NotNull(message = "until is required")
+    @NotNull(message = "La date de fin est obligatoire")
     private LocalDateTime until;
 
-    @Size(max = 1000, message = "reason must not exceed 1000 characters")
+    @Size(max = 1000, message = "La raison ne doit pas dépasser 1000 caractères")
     private String reason;
 }

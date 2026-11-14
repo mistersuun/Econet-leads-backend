@@ -210,7 +210,7 @@ public class LeadService {
 
     public ClaimDTO claim(UUID businessId, User user) {
         Business lead = businessRepository.findById(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         ClaimRegistry.Claim claim = claimRegistry.claim(lead.getId(), lead.getBusinessName(), user.getId(), user.getUsername());
         presenceService.touch(user.getId());
         return ClaimDTO.from(claim);
@@ -227,9 +227,9 @@ public class LeadService {
     @Transactional
     public LogCallResponse logCall(UUID businessId, LogCallRequest request, UUID callerId) {
         Business lead = businessRepository.findByIdForUpdate(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         User caller = userRepository.findById(callerId)
-                .orElseThrow(() -> ApiException.notFound("User not found: " + callerId));
+                .orElseThrow(() -> ApiException.notFound("Utilisateur introuvable : " + callerId));
 
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
         CallOutcome outcome = request.getOutcome();
@@ -299,9 +299,9 @@ public class LeadService {
     @Transactional
     public BusinessDTO snooze(UUID businessId, SnoozeRequest request, UUID userId) {
         Business lead = businessRepository.findByIdForUpdate(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> ApiException.notFound("User not found: " + userId));
+                .orElseThrow(() -> ApiException.notFound("Utilisateur introuvable : " + userId));
         if (!SNOOZABLE_STATUSES.contains(lead.getLeadStatus())) {
             throw ApiException.badRequest("Cannot snooze a lead in status " + lead.getLeadStatus()
                     + " (allowed: NEW, CONTACTED, INTERESTED, QUOTE_SENT)");
@@ -346,9 +346,9 @@ public class LeadService {
     @Transactional
     public BusinessDTO updateStatus(UUID businessId, LeadStatusUpdateRequest request, UUID userId) {
         Business lead = businessRepository.findByIdForUpdate(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> ApiException.notFound("User not found: " + userId));
+                .orElseThrow(() -> ApiException.notFound("Utilisateur introuvable : " + userId));
 
         LeadStatus previous = lead.getLeadStatus();
         LeadStatus next = request.getStatus();
@@ -390,7 +390,7 @@ public class LeadService {
     @Transactional(readOnly = true)
     public Map<String, Object> getQualification(UUID businessId) {
         Business lead = businessRepository.findById(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         return lead.getQualification() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(lead.getQualification());
     }
 
@@ -398,7 +398,7 @@ public class LeadService {
     @Transactional
     public Map<String, Object> patchQualification(UUID businessId, Map<String, Object> patch, UUID userId) {
         Business lead = businessRepository.findByIdForUpdate(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         lead.setQualification(qualificationService.merge(lead.getQualification(), patch));
         lead = businessRepository.saveAndFlush(lead);
         presenceService.touch(userId);
@@ -420,9 +420,9 @@ public class LeadService {
             throw ApiException.badRequest("Numéro de téléphone invalide: 10 chiffres attendus (ex. 514 555-0123), +1 optionnel");
         }
         Business lead = businessRepository.findByIdForUpdate(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> ApiException.notFound("User not found: " + userId));
+                .orElseThrow(() -> ApiException.notFound("Utilisateur introuvable : " + userId));
 
         String previous = lead.getPhone();
         lead.setPhone(PhoneFormatter.format(phone));

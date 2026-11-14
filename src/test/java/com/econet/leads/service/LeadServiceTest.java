@@ -214,7 +214,7 @@ class LeadServiceTest {
         when(businessRepository.findByIdForUpdate(missing)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.logCall(missing, call(CallOutcome.WON), caller.getId()))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining("not found");
+                .hasMessageContaining("introuvable");
         verify(contactRepository, never()).saveAndFlush(any());
     }
 

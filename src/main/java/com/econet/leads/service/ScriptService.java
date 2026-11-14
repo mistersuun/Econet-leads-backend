@@ -67,7 +67,7 @@ public class ScriptService {
 
     @Transactional
     public ScriptDTOs.Script update(UUID id, ScriptDTOs.Upsert request) {
-        CallScript script = repository.findById(id).orElseThrow(() -> ApiException.notFound("Script not found: " + id));
+        CallScript script = repository.findById(id).orElseThrow(() -> ApiException.notFound("Script introuvable : " + id));
         apply(script, request);
         return ScriptDTOs.Script.from(repository.saveAndFlush(script), false);
     }

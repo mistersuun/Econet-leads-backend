@@ -29,15 +29,15 @@ public final class ScriptDTOs {
     /** Body of POST /api/scripts and PUT /api/scripts/{id}. */
     @Data
     public static class Upsert {
-        @NotBlank(message = "name is required")
-        @Size(max = 200)
+        @NotBlank(message = "Le nom est obligatoire")
+        @Size(max = 200, message = "Le nom ne doit pas dépasser 200 caractères")
         private String name;
         /** null / blank = default script for the language */
-        @Size(max = 100)
+        @Size(max = 100, message = "Le type d'entreprise ne doit pas dépasser 100 caractères")
         private String businessType;
-        @NotBlank(message = "language is required")
+        @NotBlank(message = "La langue est obligatoire")
         private String language;
-        @NotEmpty(message = "sections are required")
+        @NotEmpty(message = "Les sections sont obligatoires")
         private List<ScriptSection> sections;
         private Boolean active;
     }

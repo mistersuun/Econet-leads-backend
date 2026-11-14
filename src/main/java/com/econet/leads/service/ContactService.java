@@ -69,11 +69,11 @@ public class ContactService {
     public Contact create(Contact contact, UUID businessId, UUID userId) {
         // Validate business exists
         Business business = businessRepository.findById(businessId)
-                .orElseThrow(() -> ApiException.notFound("Business not found with id: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Entreprise introuvable : " + businessId));
 
         // Validate user exists
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> ApiException.notFound("User not found with id: " + userId));
+                .orElseThrow(() -> ApiException.notFound("Utilisateur introuvable : " + userId));
 
         contact.setBusiness(business);
         contact.setUser(user);
@@ -112,7 +112,7 @@ public class ContactService {
     public Contact update(UUID id, Contact updatedContact) {
         // Fetch with associations to avoid LazyInitializationException
         Contact existing = contactRepository.findByIdWithAssociations(id)
-                .orElseThrow(() -> ApiException.notFound("Contact not found with id: " + id));
+                .orElseThrow(() -> ApiException.notFound("Contact introuvable : " + id));
 
         // Only update fields that are provided (non-null)
         if (updatedContact.getContactDate() != null) {
@@ -143,7 +143,7 @@ public class ContactService {
     @Transactional
     public void delete(UUID id) {
         if (!contactRepository.existsById(id)) {
-            throw ApiException.notFound("Contact not found with id: " + id);
+            throw ApiException.notFound("Contact introuvable : " + id);
         }
         contactRepository.deleteById(id);
     }

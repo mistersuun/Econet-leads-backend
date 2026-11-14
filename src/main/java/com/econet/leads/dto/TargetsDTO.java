@@ -16,13 +16,13 @@ public final class TargetsDTO {
     /** Fields left null are unchanged; dailyCallTarget / dailyConversationTarget are accepted as aliases. */
     @Data
     public static class Update {
-        @Min(1) @Max(500)
+        @Min(value = 1, message = "La cible doit être entre 1 et 500") @Max(value = 500, message = "La cible doit être entre 1 et 500")
         private Integer callTarget;
-        @Min(1) @Max(500)
+        @Min(value = 1, message = "La cible doit être entre 1 et 500") @Max(value = 500, message = "La cible doit être entre 1 et 500")
         private Integer conversationTarget;
-        @Min(1) @Max(500)
+        @Min(value = 1, message = "La cible doit être entre 1 et 500") @Max(value = 500, message = "La cible doit être entre 1 et 500")
         private Integer dailyCallTarget;
-        @Min(1) @Max(500)
+        @Min(value = 1, message = "La cible doit être entre 1 et 500") @Max(value = 500, message = "La cible doit être entre 1 et 500")
         private Integer dailyConversationTarget;
 
         public Integer effectiveCallTarget() {

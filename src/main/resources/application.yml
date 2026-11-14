@@ -134,7 +134,11 @@ app:
 
   discover:
     # OpenStreetMap discovery (POST /api/discover/osm); ODbL: the UI must show the attribution
-    overpass-url: ${OVERPASS_URL:https://overpass-api.de/api/interpreter}
+    # OVERPASS_URL (optional) is tried first, then the mirrors below in order; the last one that answered is
+    # tried first for an hour. A failing endpoint (connect error, timeout, 429, 5xx) falls through to the next.
+    overpass-url: ${OVERPASS_URL:}
+    overpass-urls: https://overpass.kumi.systems/api/interpreter,https://overpass-api.de/api/interpreter,https://overpass.private.coffee/api/interpreter,https://maps.mail.ru/osm/tools/overpass/api/interpreter
+    remember-minutes: 60
     nominatim-url: ${NOMINATIM_URL:https://nominatim.openstreetmap.org}
     timeout-seconds: 25
     min-interval-ms: 1000   # 1 request/second towards each public endpoint

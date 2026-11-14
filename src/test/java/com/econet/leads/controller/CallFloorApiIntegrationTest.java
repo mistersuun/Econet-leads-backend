@@ -542,7 +542,7 @@ class CallFloorApiIntegrationTest {
                 .andExpect(status().isNotFound());
         mvc.perform(post("/api/leads/{id}/emails", noEmail.getId()).with(ALICE).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"templateKey\":\"intro\",\"language\":\"en\"}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error", containsString("recipient")));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error", containsString("destinataire")));
         mvc.perform(post("/api/leads/{id}/emails", lead.getId()).with(VIEWER).contentType(MediaType.APPLICATION_JSON).content(visit))
                 .andExpect(status().isForbidden());
 
@@ -553,7 +553,7 @@ class CallFloorApiIntegrationTest {
         mvc.perform(post("/api/leads/{id}/emails", lead.getId()).with(CAROL).contentType(MediaType.APPLICATION_JSON).content(intro))
                 .andExpect(status().isOk());
         mvc.perform(post("/api/leads/{id}/emails", lead.getId()).with(CAROL).contentType(MediaType.APPLICATION_JSON).content(intro))
-                .andExpect(status().isTooManyRequests()).andExpect(jsonPath("$.error", containsString("per hour")));
+                .andExpect(status().isTooManyRequests()).andExpect(jsonPath("$.error", containsString("par heure")));
         // preview is not rate limited
         mvc.perform(post("/api/leads/{id}/emails/preview", lead.getId()).with(CAROL).contentType(MediaType.APPLICATION_JSON).content(intro))
                 .andExpect(status().isOk());

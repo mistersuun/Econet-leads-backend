@@ -8,9 +8,9 @@ import lombok.Data;
 @Data
 public class LeadStatusUpdateRequest {
 
-    @NotNull(message = "status is required")
+    @NotNull(message = "Le statut est obligatoire")
     private LeadStatus status;
 
-    @Size(max = 5000, message = "note must not exceed 5000 characters")
+    @Size(max = 5000, message = "La note ne doit pas dépasser 5000 caractères")
     private String note;
 }

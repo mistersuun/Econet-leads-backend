@@ -110,7 +110,7 @@ public class EmailService {
     @Transactional
     public EmailDTOs.Template updateTemplate(UUID id, EmailTemplateUpdateRequest request) {
         EmailTemplate template = templateRepository.findById(id)
-                .orElseThrow(() -> ApiException.notFound("Email template not found: " + id));
+                .orElseThrow(() -> ApiException.notFound("Modèle de courriel introuvable : " + id));
         if (request.getSubject() != null) {
             if (request.getSubject().isBlank()) throw ApiException.badRequest("subject must not be blank");
             template.setSubject(request.getSubject().trim());
@@ -138,7 +138,7 @@ public class EmailService {
     @Transactional(readOnly = true)
     public EmailPreviewDTO preview(UUID leadId, EmailSendRequest request, User caller) {
         Business lead = businessRepository.findById(leadId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + leadId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + leadId));
         Rendered r = render(lead, request, caller);
         return new EmailPreviewDTO(r.subject(), r.body());
     }
@@ -147,13 +147,13 @@ public class EmailService {
     public EmailSendResponse send(UUID leadId, EmailSendRequest request, User caller) {
         JavaMailSender sender = settings.isConfigured() ? mailSender.getIfAvailable() : null;
         if (sender == null) {
-            throw ApiException.serviceUnavailable("Email is not configured (set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)");
+            throw ApiException.serviceUnavailable("Courriel non configuré (définir SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)");
         }
         Business lead = businessRepository.findByIdForUpdate(leadId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + leadId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + leadId));
         Rendered r = render(lead, request, caller);
         if (r.to() == null) {
-            throw ApiException.badRequest("No recipient: pass 'to' or set an email on the lead / its qualification");
+            throw ApiException.badRequest("Aucun destinataire : indiquez un courriel pour ce lead");
         }
         rateLimiter.acquire(caller.getId());
 
@@ -182,7 +182,7 @@ public class EmailService {
             sender.send(message);
         } catch (MessagingException | UnsupportedEncodingException | MailException e) {
             log.error("Email to lead {} failed: {}", lead.getId(), e.getMessage());
-            throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "Email could not be sent: " + e.getMessage());
+            throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "Le courriel n'a pas pu être envoyé");
         }
 
         Contact contact = new Contact();
@@ -251,7 +251,7 @@ public class EmailService {
         String to = request.getTo() != null && !request.getTo().isBlank() ? request.getTo().trim()
                 : firstNonBlank(QualificationService.text(qualification, "email"), lead.getEmail());
         if (to != null && !to.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+")) {
-            throw ApiException.badRequest("'" + to + "' is not a valid email address");
+            throw ApiException.badRequest("Adresse courriel invalide : " + to);
         }
         return new Rendered(tidy(substitute(template.getSubject(), values)), tidy(substitute(template.getBody(), values)), to, language);
     }

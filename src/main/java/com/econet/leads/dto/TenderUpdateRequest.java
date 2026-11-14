@@ -10,6 +10,6 @@ public class TenderUpdateRequest {
 
     private TenderStatus status;
 
-    @Size(max = 10000, message = "notes must not exceed 10000 characters")
+    @Size(max = 10000, message = "Les notes ne doit pas dépasser 10000 caractères")
     private String notes;
 }

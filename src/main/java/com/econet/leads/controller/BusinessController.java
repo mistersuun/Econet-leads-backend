@@ -139,7 +139,7 @@ public class BusinessController {
     public ResponseEntity<BusinessDTO> getBusinessById(@PathVariable UUID id) {
         return businessService.findDtoById(id)
                 .map(ResponseEntity::ok)
-                .orElseThrow(() -> ApiException.notFound("Business not found with id: " + id));
+                .orElseThrow(() -> ApiException.notFound("Entreprise introuvable : " + id));
     }
 
     @PatchMapping("/{id}/status")
@@ -214,7 +214,7 @@ public class BusinessController {
         // Fetch category if provided
         if (request.getCategoryId() != null) {
             BusinessCategory category = businessCategoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> ApiException.badRequest("Category not found with id: " + request.getCategoryId()));
+                .orElseThrow(() -> ApiException.badRequest("Catégorie introuvable : " + request.getCategoryId()));
             business.setCategory(category);
         }
 
@@ -230,7 +230,7 @@ public class BusinessController {
         business.setEstimatedValue(request.getEstimatedValue());
         if (request.getAssignedToId() != null) {
             business.setAssignedTo(userRepository.findById(request.getAssignedToId())
-                    .orElseThrow(() -> ApiException.badRequest("User not found: " + request.getAssignedToId())));
+                    .orElseThrow(() -> ApiException.badRequest("Utilisateur introuvable : " + request.getAssignedToId())));
         }
 
         Business updated = businessService.update(id, business);
