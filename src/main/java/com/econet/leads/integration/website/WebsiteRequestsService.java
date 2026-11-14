@@ -39,6 +39,7 @@ public class WebsiteRequestsService {
     private final UserRepository userRepository;
     private final DataSourceRepository dataSourceRepository;
     private final Clock clock;
+    private final org.springframework.context.ApplicationEventPublisher publisher;
 
     /** Called for every upserted website record; only a newly created lead is announced. */
     public void afterUpsert(BusinessService.UpsertResult result) {
@@ -73,6 +74,12 @@ public class WebsiteRequestsService {
         payload.put("businessType", lead.getBusinessType());
         payload.put("estimatedValue", lead.getEstimatedValue());
         events.publish(EVENT_INBOUND, payload);
+        try {
+            publisher.publishEvent(new InboundLeadEvent(lead.getId(), lead.getBusinessName(), inbound.kind(),
+                    lead.getBusinessType(), lead.getEstimatedValue(), lead.getPhone()));
+        } catch (RuntimeException e) {
+            log.warn("Inbound lead listener failed for {}: {}", lead.getId(), e.toString());
+        }
     }
 
     /** Configured for the first time: switch the source on (once; an admin who later turns it off keeps it off). */
