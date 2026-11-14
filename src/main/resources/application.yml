@@ -162,6 +162,11 @@ app:
     email: ${ALERT_EMAIL:}   # needs SMTP
     max-sms-per-day: 30
 
+  places:
+    # Google Places API (New) enrichment of leads; optional, the CRM shows "non configuré" while the key is empty.
+    api-key: ${GOOGLE_PLACES_API_KEY:}
+    daily-limit: ${PLACES_DAILY_LIMIT:100}   # calls per day (Montreal time)
+
   company:
     name: ${COMPANY_NAME:EcoNet Propreté}
 

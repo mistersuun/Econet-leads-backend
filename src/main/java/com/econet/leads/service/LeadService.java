@@ -167,6 +167,14 @@ public class LeadService {
      * in the database (a CASE over the business types with history, the smoothing prior otherwise).
      */
     static Expression<Double> priorityExpression(Root<Business> root, CriteriaBuilder cb, Map<String, Double> rates) {
+        // +10 for leads with Google cleanliness review quotes (same bonus as PriorityScoreService.CLEANLINESS_BONUS)
+        Expression<Double> cleanliness = cb.<Double>selectCase()
+                .when(cb.isTrue(root.<Boolean>get("placesCleanliness")), PriorityScoreService.CLEANLINESS_BONUS)
+                .otherwise(0.0);
+        return cb.sum(basePriority(root, cb, rates), cleanliness);
+    }
+
+    private static Expression<Double> basePriority(Root<Business> root, CriteriaBuilder cb, Map<String, Double> rates) {
         Expression<Double> quality = cb.prod(cb.toDouble(cb.coalesce(root.<Integer>get("dataQualityScore"), 0)), 0.5);
         if (rates.isEmpty()) {
             return cb.sum(quality, cb.literal(50.0 * PriorityScoreService.DEFAULT_RATE));

@@ -182,4 +182,7 @@ public interface BusinessRepository extends JpaRepository<Business, UUID>, JpaSp
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT b FROM Business b WHERE b.id = :id")
     Optional<Business> findByIdForUpdate(@Param("id") UUID id);
+
+    /** Leads whose Google data was fetched before the cutoff (cache expiry, see PlacesService#purgeExpired). */
+    List<Business> findByPlacesIsNotNullAndPlacesCheckedAtBefore(java.time.LocalDateTime cutoff);
 }

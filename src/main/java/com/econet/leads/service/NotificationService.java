@@ -49,6 +49,7 @@ public class NotificationService {
     private final BusinessRepository businessRepository;
     private final TenderRepository tenderRepository;
     private final ClaimRegistry claimRegistry;
+    private final com.econet.leads.repository.SavedSearchRepository savedSearchRepository;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -106,6 +107,19 @@ public class NotificationService {
                     "Fermeture dans " + hours + " h (" + WHEN.format(t.getClosingAt()) + ")"
                             + (t.getBuyer() != null ? " · " + t.getBuyer() : ""),
                     null, t.getId(), t.getClosingAt()));
+        }
+
+        // Saved searches that found new leads in the last 24 h (the assignee, or the creator when unassigned)
+        for (var s : savedSearchRepository.findByLastRunAtAfterAndLastAddedGreaterThan(now.minus(INBOUND_WINDOW), 0)) {
+            User target = s.getAssignTo() != null ? s.getAssignTo() : s.getCreatedBy();
+            if (target == null || !target.getId().equals(user.getId())) {
+                continue;
+            }
+            result.add(new NotificationDTO(
+                    "saved_search:" + s.getId() + ":" + s.getLastRunAt().toLocalDate(),
+                    NotificationDTO.SAVED_SEARCH,
+                    "Recherche « " + s.getName() + " » : " + s.getLastAdded() + " nouveaux leads",
+                    s.getCity(), null, null, s.getLastRunAt()));
         }
 
         result.sort(Comparator.comparing(NotificationDTO::at));

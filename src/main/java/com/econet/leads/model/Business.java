@@ -132,6 +132,22 @@ public class Business {
     @Column(name = "qualification", columnDefinition = "jsonb")
     private Map<String, Object> qualification;
 
+    /**
+     * Google Places data (V13): placeId, rating, reviewCount, mapsUrl, website, phone, openingHours,
+     * businessStatus, cleanlinessSignals, fetchedAt. See {@link com.econet.leads.service.PlacesService}.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "places", columnDefinition = "jsonb")
+    private Map<String, Object> places;
+
+    /** Last Google lookup, including lookups that found no confident match (V13). */
+    @Column(name = "places_checked_at")
+    private LocalDateTime placesCheckedAt;
+
+    /** True while {@code places} holds cleanliness review quotes: feeds the queue priority bonus (V13). */
+    @Column(name = "places_cleanliness", nullable = false)
+    private boolean placesCleanliness = false;
+
     // Helper method to get full address
     public String getFullAddress() {
         StringBuilder sb = new StringBuilder();
