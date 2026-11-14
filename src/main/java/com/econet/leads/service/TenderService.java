@@ -161,7 +161,7 @@ public class TenderService {
     }
 
     private Tender load(UUID id) {
-        return tenderRepository.findById(id).orElseThrow(() -> ApiException.notFound("Tender not found: " + id));
+        return tenderRepository.findById(id).orElseThrow(() -> ApiException.notFound("Appel d'offres introuvable : " + id));
     }
 
     static Specification<Tender> specification(Filters f, LocalDateTime now) {

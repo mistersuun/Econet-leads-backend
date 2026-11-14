@@ -10,15 +10,15 @@ import java.util.UUID;
 
 @Data
 public class ContactCreateRequest {
-    @NotNull(message = "Business ID is required")
+    @NotNull(message = "L'identifiant de l'entreprise est obligatoire")
     private UUID businessId;
 
     private LocalDateTime contactDate;
 
-    @NotNull(message = "Contact type is required")
+    @NotNull(message = "Le type de contact est obligatoire")
     private Contact.ContactType contactType;
 
-    @NotBlank(message = "Contact status is required")
+    @NotBlank(message = "Le statut du contact est obligatoire")
     private String contactStatus;
 
     private String contactPerson;

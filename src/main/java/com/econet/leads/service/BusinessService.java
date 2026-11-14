@@ -96,7 +96,7 @@ public class BusinessService {
         Optional<Business> duplicate = findDuplicate(business);
         if (duplicate.isPresent()) {
             log.warn("Duplicate business found: {}", duplicate.get().getId());
-            throw ApiException.conflict("Duplicate business already exists: " + duplicate.get().getBusinessName());
+            throw ApiException.conflict("Cette entreprise existe déjà : " + duplicate.get().getBusinessName());
         }
 
         // Calculate quality score
@@ -207,7 +207,7 @@ public class BusinessService {
     @Transactional
     public Business update(UUID id, Business updatedBusiness) {
         Business existing = businessRepository.findById(id)
-                .orElseThrow(() -> ApiException.notFound("Business not found with id: " + id));
+                .orElseThrow(() -> ApiException.notFound("Entreprise introuvable : " + id));
         String nameBefore = existing.getBusinessName();
         String cityBefore = existing.getAddressCity();
         String phoneBefore = existing.getPhoneNormalized();
@@ -271,7 +271,7 @@ public class BusinessService {
         Optional<Business> duplicate = identityChanged ? findDuplicateExcluding(existing, id) : Optional.empty();
         if (duplicate.isPresent()) {
             log.warn("Update would create duplicate: {}", duplicate.get().getId());
-            throw ApiException.conflict("Update rejected: would create duplicate of business: " + duplicate.get().getBusinessName());
+            throw ApiException.conflict("Modification refusée : crée un doublon de l'entreprise : " + duplicate.get().getBusinessName());
         }
 
         // Recalculate quality score
@@ -284,7 +284,7 @@ public class BusinessService {
     @Transactional
     public void delete(UUID id) {
         if (!businessRepository.existsById(id)) {
-            throw ApiException.notFound("Business not found with id: " + id);
+            throw ApiException.notFound("Entreprise introuvable : " + id);
         }
         businessRepository.deleteById(id);
     }

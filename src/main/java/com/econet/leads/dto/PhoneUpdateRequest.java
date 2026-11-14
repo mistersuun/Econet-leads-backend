@@ -8,7 +8,7 @@ import lombok.Data;
 @Data
 public class PhoneUpdateRequest {
 
-    @NotBlank(message = "phone is required")
-    @Size(max = 30, message = "phone must not exceed 30 characters")
+    @NotBlank(message = "Le téléphone est obligatoire")
+    @Size(max = 30, message = "Le téléphone ne doit pas dépasser 30 caractères")
     private String phone;
 }

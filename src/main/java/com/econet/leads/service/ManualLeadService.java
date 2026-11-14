@@ -54,7 +54,7 @@ public class ManualLeadService {
         business.setBusinessType(blankToNull(request.getBusinessType()) != null ? request.getBusinessType().trim() : DEFAULT_TYPE);
         if (request.getCategoryId() != null) {
             business.setCategory(categoryRepository.findById(request.getCategoryId())
-                    .orElseThrow(() -> ApiException.badRequest("Category not found with id: " + request.getCategoryId())));
+                    .orElseThrow(() -> ApiException.badRequest("Catégorie introuvable : " + request.getCategoryId())));
         }
         business.setAddressStreet(request.getAddressStreet());
         business.setAddressCity(request.getAddressCity());

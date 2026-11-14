@@ -11,14 +11,14 @@ import java.time.LocalDateTime;
 public class EmailSendRequest {
 
     /** quote_followup | visit_confirmation | missed_you | intro */
-    @NotBlank(message = "templateKey is required")
+    @NotBlank(message = "Le modèle est obligatoire")
     private String templateKey;
 
     /** fr | en (default: the lead's qualification.language, else fr) */
     private String language;
 
     /** Recipient; defaults to qualification.email, then the lead's email. */
-    @Size(max = 255)
+    @Size(max = 255, message = "Le courriel ne doit pas dépasser 255 caractères")
     private String to;
 
     /** Optional estimate rendered into {{estimateLines}} / {{estimateTotal}}. */
@@ -27,6 +27,6 @@ public class EmailSendRequest {
     /** Visit date/time (America/Montreal); an ICS invite is attached when set. */
     private LocalDateTime visitAt;
 
-    @Size(max = 2000, message = "extraNote must not exceed 2000 characters")
+    @Size(max = 2000, message = "La note supplémentaire ne doit pas dépasser 2000 caractères")
     private String extraNote;
 }

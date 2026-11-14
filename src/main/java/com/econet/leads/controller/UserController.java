@@ -1,6 +1,8 @@
 package com.econet.leads.controller;
 
+import com.econet.leads.dto.PasswordDTOs;
 import com.econet.leads.dto.TargetsDTO;
+import com.econet.leads.service.AccountService;
 import com.econet.leads.dto.UserSummaryDTO;
 import com.econet.leads.exception.ApiException;
 import com.econet.leads.repository.UserRepository;
@@ -25,6 +27,8 @@ public class UserController {
 
     private final UserRepository userRepository;
 
+    private final AccountService accountService;
+
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "List users with their daily targets (ADMIN)")
@@ -44,7 +48,7 @@ public class UserController {
     @Operation(summary = "A user's daily targets (ADMIN)")
     public ResponseEntity<TargetsDTO.Targets> getTargets(@PathVariable UUID id) {
         return ResponseEntity.ok(TargetsService.of(userRepository.findById(id)
-                .orElseThrow(() -> ApiException.notFound("User not found: " + id))));
+                .orElseThrow(() -> ApiException.notFound("Utilisateur introuvable : " + id))));
     }
 
     @PutMapping("/{id}/targets")
@@ -52,5 +56,13 @@ public class UserController {
     @Operation(summary = "Set a user's daily targets (ADMIN)")
     public ResponseEntity<TargetsDTO.Targets> updateTargets(@PathVariable UUID id, @Valid @RequestBody TargetsDTO.Update request) {
         return ResponseEntity.ok(targetsService.update(id, request));
+    }
+
+    @PutMapping("/{id}/password")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Set a user's password (ADMIN)", description = "{ newPassword } (min 10 characters, not the username) → 204")
+    public ResponseEntity<Void> resetPassword(@PathVariable UUID id, @Valid @RequestBody PasswordDTOs.Reset request) {
+        accountService.resetPassword(id, request.getNewPassword());
+        return ResponseEntity.noContent().build();
     }
 }

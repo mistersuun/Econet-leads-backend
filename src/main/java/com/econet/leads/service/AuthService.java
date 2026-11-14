@@ -56,12 +56,12 @@ public class AuthService {
     public AuthResponse register(RegisterRequest registerRequest) {
         // Check if username already exists
         if (userRepository.existsByUsername(registerRequest.getUsername())) {
-            throw ApiException.conflict("Username is already taken");
+            throw ApiException.conflict("Ce nom d'utilisateur est déjà utilisé");
         }
 
         // Check if email already exists
         if (userRepository.existsByEmail(registerRequest.getEmail())) {
-            throw ApiException.conflict("Email is already in use");
+            throw ApiException.conflict("Ce courriel est déjà utilisé");
         }
 
         // Create new user
@@ -84,13 +84,13 @@ public class AuthService {
     @Transactional
     public AuthResponse refreshToken(String refreshToken) {
         if (!tokenProvider.validateRefreshToken(refreshToken)) {
-            throw new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Invalid refresh token");
+            throw new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Session expirée, reconnectez-vous");
         }
 
         String username = tokenProvider.getUsernameFromRefreshToken(refreshToken);
         User user = userRepository.findByUsername(username)
                 .filter(u -> Boolean.TRUE.equals(u.getActive()))
-                .orElseThrow(() -> new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Invalid refresh token"));
+                .orElseThrow(() -> new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Session expirée, reconnectez-vous"));
 
         String newAccessToken = tokenProvider.generateToken(username);
         String newRefreshToken = tokenProvider.generateRefreshToken(username);

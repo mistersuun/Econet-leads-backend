@@ -40,7 +40,7 @@ public class EmailRateLimiter {
                 window.pollFirst();
             }
             if (window.size() >= limit()) {
-                throw ApiException.tooManyRequests("Email limit reached: at most " + limit() + " emails per hour per user");
+                throw ApiException.tooManyRequests("Limite atteinte : au plus " + limit() + " courriels par heure par utilisateur");
             }
             window.addLast(now);
         }
