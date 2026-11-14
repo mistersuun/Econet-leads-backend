@@ -51,6 +51,7 @@ public class NotificationService {
     private final ClaimRegistry claimRegistry;
     private final com.econet.leads.repository.SavedSearchRepository savedSearchRepository;
     private final Clock clock;
+    private final BookingNotificationSource bookingNotifications;
 
     @Transactional(readOnly = true)
     public List<NotificationDTO> forUser(User user) {
@@ -121,6 +122,8 @@ public class NotificationService {
                     "Recherche « " + s.getName() + " » : " + s.getLastAdded() + " nouveaux leads",
                     s.getCity(), null, null, s.getLastRunAt()));
         }
+
+        result.addAll(bookingNotifications.forUser(user));
 
         result.sort(Comparator.comparing(NotificationDTO::at));
         return result.size() > MAX_ITEMS ? result.subList(0, MAX_ITEMS) : result;

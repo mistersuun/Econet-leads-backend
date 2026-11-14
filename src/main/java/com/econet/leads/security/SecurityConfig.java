@@ -60,6 +60,8 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // Public quote and booking pages (secret token in the URL; see PublicPagesFilter)
+                        .requestMatchers("/public/**").permitAll()
 
                         // Account creation is restricted to administrators
                         .requestMatchers("/api/auth/register").hasRole("ADMIN")

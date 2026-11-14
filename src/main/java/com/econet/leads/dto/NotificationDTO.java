@@ -17,4 +17,9 @@ public record NotificationDTO(String id, String kind, String title, String body,
     public static final String INBOUND_REQUEST = "inbound_request";
     /** A saved search that found new leads in its last run. */
     public static final String SAVED_SEARCH = "saved_search";
+
+    /** A prospect accepted a quote through its public link (P5). */
+    public static final String QUOTE_ACCEPTED = "quote_accepted";
+    /** A prospect booked a visit through a booking link (P5). */
+    public static final String VISIT_BOOKED = "visit_booked";
 }
