@@ -11,6 +11,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -36,6 +37,10 @@ public class LogCallRequest {
     @Min(value = 0, message = "durationSeconds must be positive")
     @Max(value = 86400, message = "durationSeconds must be at most 86400")
     private Integer durationSeconds;
+
+    /** Objections heard during the call (V14): at most 5, each at most 80 characters. */
+    @Size(max = 5, message = "objections must contain at most 5 items")
+    private List<@Size(max = 80, message = "each objection must not exceed 80 characters") String> objections;
 
     /** Partial Qualification, merged into the lead (see QualificationService). */
     private Map<String, Object> qualification;

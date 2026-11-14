@@ -52,6 +52,10 @@ public class User {
     @Column(name = "daily_conversation_target", nullable = false)
     private Integer dailyConversationTarget = DEFAULT_DAILY_CONVERSATION_TARGET;
 
+    /** Monday coaching email (V14); on by default. */
+    @Column(name = "weekly_report", nullable = false)
+    private Boolean weeklyReport = Boolean.TRUE;
+
     public static final int DEFAULT_DAILY_CALL_TARGET = 40;
     public static final int DEFAULT_DAILY_CONVERSATION_TARGET = 6;
 

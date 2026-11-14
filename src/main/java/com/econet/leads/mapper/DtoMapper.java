@@ -71,6 +71,8 @@ public final class DtoMapper {
         dto.setUsername(contact.getUser().getUsername());
         dto.setOutcome(contact.getOutcome());
         dto.setDurationSeconds(contact.getDurationSeconds());
+        dto.setObjections(contact.getObjections() == null || contact.getObjections().isEmpty()
+                ? null : new java.util.ArrayList<>(contact.getObjections()));
         dto.setCreatedAt(contact.getCreatedAt());
         return dto;
     }

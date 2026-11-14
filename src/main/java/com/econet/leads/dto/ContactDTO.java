@@ -4,6 +4,7 @@ import com.econet.leads.model.Contact;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -22,5 +23,6 @@ public class ContactDTO {
     private String username;
     private Contact.ContactOutcome outcome;
     private Integer durationSeconds;
+    private List<String> objections;
     private LocalDateTime createdAt;
 }

@@ -20,7 +20,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ScriptService {
 
-    public static final Set<String> SECTION_KEYS = Set.of("opening", "questions", "objections", "closing");
+    public static final Set<String> SECTION_KEYS = Set.of("opening", "questions", "objections", "closing", "voicemail");
     public static final Set<String> LANGUAGES = Set.of("fr", "en");
 
     private final CallScriptRepository repository;

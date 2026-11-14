@@ -34,6 +34,12 @@ public interface ContactRepository extends JpaRepository<Contact, UUID> {
     @Query("SELECT c FROM Contact c LEFT JOIN FETCH c.business LEFT JOIN FETCH c.user WHERE c.nextActionDate IS NOT NULL AND c.nextActionDate >= :startDate AND c.nextActionDate <= :endDate ORDER BY c.nextActionDate")
     List<Contact> findUpcomingFollowUps(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
+    /** Calls of one user in [from, to) that carry objections (weekly coaching email). */
+    @Query("SELECT c.objections FROM Contact c WHERE c.user.id = :userId AND c.contactType = com.econet.leads.model.Contact.ContactType.APPEL "
+            + "AND c.contactDate >= :from AND c.contactDate < :to AND c.objections IS NOT NULL")
+    List<List<String>> findObjectionsByUserBetween(@Param("userId") UUID userId, @Param("from") LocalDateTime from,
+                                                   @Param("to") LocalDateTime to);
+
     // Find contacts by status
     Page<Contact> findByContactStatus(String status, Pageable pageable);
 
