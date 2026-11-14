@@ -81,6 +81,13 @@ public class LeadService {
     private final QualificationService qualificationService;
     private final DashboardService dashboardService;
 
+    /**
+     * Creates the client record when a lead is won (see ClientService#onLeadWon). Field-injected so
+     * the constructor stays unchanged; optional (null) in unit tests that build the service by hand.
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ClientService clientService;
+
     // ------------------------------------------------------------------ queue
 
     /** Optional "session mode" filters of GET /api/leads/queue. */
@@ -287,6 +294,7 @@ public class LeadService {
             lead.setQualification(qualificationService.merge(lead.getQualification(), request.getQualification()));
         }
         lead = businessRepository.saveAndFlush(lead); // flush so updatedAt is current in the response
+        onWon(lead, newStatus);
 
         claimRegistry.release(lead.getId(), null);
         presenceService.touch(callerId);
@@ -373,6 +381,7 @@ public class LeadService {
             contactRepository.clearNextActionDates(lead.getId());
         }
         lead = businessRepository.saveAndFlush(lead);
+        onWon(lead, next);
 
         Contact history = new Contact();
         history.setBusiness(lead);
@@ -392,6 +401,13 @@ public class LeadService {
         presenceService.touch(userId);
         publishLeadUpdated(lead);
         return decorate(DtoMapper.toDto(lead));
+    }
+
+    /** Hook for every path that moves a lead to WON (calls, status change, accepted quote). */
+    private void onWon(Business lead, LeadStatus status) {
+        if (status == LeadStatus.WON && clientService != null) {
+            clientService.onLeadWon(lead);
+        }
     }
 
     // ------------------------------------------------------------------ qualification

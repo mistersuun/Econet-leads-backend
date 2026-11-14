@@ -53,6 +53,10 @@ public class NotificationService {
     private final Clock clock;
     private final BookingNotificationSource bookingNotifications;
 
+    /** contract_renewal / review_request_due / visit_due; field-injected to keep the constructor stable. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ClientService clientService;
+
     @Transactional(readOnly = true)
     public List<NotificationDTO> forUser(User user) {
         LocalDateTime now = LocalDateTime.now(clock);
@@ -124,6 +128,10 @@ public class NotificationService {
         }
 
         result.addAll(bookingNotifications.forUser(user));
+
+        if (clientService != null) {
+            result.addAll(clientService.notificationsFor(user));
+        }
 
         result.sort(Comparator.comparing(NotificationDTO::at));
         return result.size() > MAX_ITEMS ? result.subList(0, MAX_ITEMS) : result;
