@@ -52,6 +52,6 @@ class WeeklyReportNotConfiguredTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.html").exists());
         scheduler.run(); // must not throw
-        assertThatThrownBy(service::sendAll).hasMessageContaining("not configured");
+        assertThatThrownBy(service::sendAll).hasMessageContaining("non configuré");
     }
 }

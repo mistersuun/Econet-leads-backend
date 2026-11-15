@@ -217,7 +217,7 @@ public class QuoteService {
     public QuoteDTOs.Quote send(UUID quoteId, QuoteDTOs.SendRequest request, User caller) {
         JavaMailSender sender = mailSettings.isConfigured() ? mailSender.getIfAvailable() : null;
         if (sender == null) {
-            throw ApiException.serviceUnavailable("Email is not configured (set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)");
+            throw ApiException.serviceUnavailable("Courriel non configuré (définir SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)");
         }
         Quote quote = quoteRepository.findById(quoteId)
                 .orElseThrow(() -> ApiException.notFound("Quote not found: " + quoteId));

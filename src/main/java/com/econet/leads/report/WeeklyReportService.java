@@ -297,7 +297,7 @@ public class WeeklyReportService {
     public int sendAll() {
         JavaMailSender sender = mailSettings.isConfigured() ? mailSender.getIfAvailable() : null;
         if (sender == null) {
-            throw ApiException.serviceUnavailable("Email is not configured (set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)");
+            throw ApiException.serviceUnavailable("Courriel non configuré (définir SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)");
         }
         List<User> recipients = userRepository.findByActiveTrueAndWeeklyReportTrueAndRoleIn(
                 EnumSet.of(User.UserRole.ADMIN, User.UserRole.USER));
