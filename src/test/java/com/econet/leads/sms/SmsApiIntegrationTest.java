@@ -189,6 +189,17 @@ class SmsApiIntegrationTest {
     }
 
     @Test
+    void followUpIsRefusedForDoNotCallLeadsAndDoesNotSend() throws Exception {
+        Business b = lead("Ne pas rappeler", "514-555-0188");
+        b.setLeadStatus(LeadStatus.DO_NOT_CALL);
+        businessRepository.save(b);
+        mvc.perform(post("/api/leads/{id}/sms", b.getId()).with(ALICE).contentType(MediaType.APPLICATION_JSON)
+                        .content(sms("missed_call", true)))
+                .andExpect(status().isConflict());
+        assertThat(TWILIO.calls).isEmpty();
+    }
+
+    @Test
     void followUpWithoutUsablePhoneIs400() throws Exception {
         Business b = lead("Sans téléphone", null);
         mvc.perform(post("/api/leads/{id}/sms", b.getId()).with(ALICE).contentType(MediaType.APPLICATION_JSON)

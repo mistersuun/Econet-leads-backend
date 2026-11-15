@@ -54,7 +54,10 @@ public class WebsiteRequestsImporter {
     private static final Pattern EMAIL = Pattern.compile("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
 
     /** What the post-import hook needs to know about a lead (note text, kind for the SSE event). */
-    public record Inbound(String kind, String note) {
+    public record Inbound(String kind, String note, java.time.Instant requestedAt) {
+        public Inbound(String kind, String note) {
+            this(kind, note, null);
+        }
     }
 
     private final WebsiteDb websiteDb;
@@ -93,7 +96,7 @@ public class WebsiteRequestsImporter {
                 });
             }
             if (more) {
-                readEstimates(jdbc, since, b -> {
+                readEstimates(jdbc, since, report, b -> {
                     counts[2]++;
                     return sink.test(b);
                 });
@@ -157,7 +160,7 @@ public class WebsiteRequestsImporter {
         if (instructions != null) qualification.put("notes", truncate(instructions, 5000));
         b.setQualification(qualification.isEmpty() ? null : qualification);
 
-        inboundByExternalId.put(b.getExternalId(), new Inbound("booking", "Demande de réservation reçue sur le site"));
+        inboundByExternalId.put(b.getExternalId(), new Inbound("booking", "Demande de réservation reçue sur le site", requestedAt(rs)));
         return b;
     }
 
@@ -192,7 +195,7 @@ public class WebsiteRequestsImporter {
         put(details, "Message", message);
         b.setSourceDetails(details);
 
-        inboundByExternalId.put(b.getExternalId(), new Inbound("contact", message != null ? message : "Message reçu sur le site"));
+        inboundByExternalId.put(b.getExternalId(), new Inbound("contact", message != null ? message : "Message reçu sur le site", requestedAt(rs)));
         return b;
     }
 
@@ -202,17 +205,27 @@ public class WebsiteRequestsImporter {
      * Visitors who asked to receive their estimate by email (consent is enforced by the table). The table is
      * created by the website's supabase/estimate-requests.sql; when it does not exist yet the source is skipped.
      */
-    private boolean readEstimates(JdbcTemplate jdbc, Timestamp since, Predicate<Business> sink) {
+    private boolean readEstimates(JdbcTemplate jdbc, Timestamp since, ImportReport report, Predicate<Business> sink) {
         String sql = "SELECT id, email, first_name, phone, service, area, property_type, add_ons, frequency, total, language, "
                 + "created_at FROM estimate_requests WHERE consent = TRUE" + (since != null ? " AND created_at > ?" : "")
                 + " ORDER BY created_at ASC LIMIT " + MAX_ROWS_PER_TABLE;
         try {
             return query(jdbc, sql, since, rs -> sink.test(toEstimate(rs)));
         } catch (BadSqlGrammarException e) {
-            // Postgres 42P01 / H2 table not found: the table has not been created on the website side yet
-            if (estimateTableMissingLogged.compareAndSet(false, true)) {
-                log.info("Website table estimate_requests not found: estimate requests are skipped until supabase/estimate-requests.sql is run");
+            String state = e.getCause() instanceof SQLException cause0 ? cause0.getSQLState() : null;
+            // Postgres 42P01 / H2 42S02, 42102: the table has not been created on the website side yet
+            if ("42P01".equals(state) || "42S02".equals(state) || "42102".equals(state)) {
+                if (estimateTableMissingLogged.compareAndSet(false, true)) {
+                    log.info("Website table estimate_requests not found: estimate requests are skipped until supabase/estimate-requests.sql is run");
+                }
+                return true;
             }
+            // anything else (permission denied, missing column...) is a real problem: say so on every run
+            String cause = "42501".equals(state) ? "permission refusée (accordez SELECT sur estimate_requests)"
+                    : "42703".equals(state) ? "colonne manquante (relancez supabase/estimate-requests.sql)"
+                    : "erreur SQL " + state;
+            log.warn("Website table estimate_requests could not be read ({}), estimate requests skipped", state);
+            report.note("Demandes d'estimation ignorées : " + cause);
             return true;
         }
     }
@@ -253,7 +266,7 @@ public class WebsiteRequestsImporter {
         if (wanted != null) qualification.put("frequencyWanted", wanted);
         b.setQualification(qualification.isEmpty() ? null : qualification);
 
-        inboundByExternalId.put(b.getExternalId(), new Inbound("estimate", "Estimation demandée sur le site"));
+        inboundByExternalId.put(b.getExternalId(), new Inbound("estimate", "Estimation demandée sur le site", requestedAt(rs)));
         return b;
     }
 
@@ -321,6 +334,16 @@ public class WebsiteRequestsImporter {
     }
 
     /** @return false when the sink asked to stop */
+    /** When the visitor sent the request (the row's created_at), or null when unreadable. */
+    private static java.time.Instant requestedAt(ResultSet rs) {
+        try {
+            Timestamp ts = rs.getTimestamp("created_at");
+            return ts == null ? null : ts.toInstant();
+        } catch (SQLException e) {
+            return null;
+        }
+    }
+
     private boolean query(JdbcTemplate jdbc, String sql, Timestamp since, RowSink sink) {
         ResultSetExtractor<Boolean> extractor = rs -> {
             while (rs.next()) {

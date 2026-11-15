@@ -102,17 +102,24 @@ class QuotesNotConfiguredTest {
 
         // 8 requests per minute per address: the 9th is refused, another address is not
         for (int i = 0; i < 8; i++) {
-            mvc.perform(get("/public/quotes/{t}", "A".repeat(43)).header("X-Forwarded-For", "203.0.113.7"))
+            mvc.perform(get("/public/quotes/{t}", "A".repeat(43)).with(from("203.0.113.7")))
                     .andExpect(status().isNotFound());
         }
-        mvc.perform(get("/public/quotes/{t}", "A".repeat(43)).header("X-Forwarded-For", "203.0.113.7"))
+        mvc.perform(get("/public/quotes/{t}", "A".repeat(43)).with(from("203.0.113.7")))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().string("Retry-After", "60"))
                 .andExpect(header().string("X-Robots-Tag", containsString("noindex")))
                 .andExpect(content().string(containsString("Trop de requêtes")));
-        mvc.perform(get("/public/quotes/{t}", "A".repeat(43)).header("X-Forwarded-For", "203.0.113.8"))
+        mvc.perform(get("/public/quotes/{t}", "A".repeat(43)).with(from("203.0.113.8")))
                 .andExpect(status().isNotFound());
         // the CRM API is not affected by the public limit
         mvc.perform(get("/api/availability").with(user("nora").roles("USER"))).andExpect(status().isOk());
+    }
+
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor from(String address) {
+        return request -> {
+            request.setRemoteAddr(address);
+            return request;
+        };
     }
 }

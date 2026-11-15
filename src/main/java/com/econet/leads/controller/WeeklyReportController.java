@@ -43,7 +43,7 @@ public class WeeklyReportController {
     public record Preferences(boolean weeklyReport) {
     }
 
-    public record PreferencesUpdate(@NotNull(message = "weeklyReport is required") Boolean weeklyReport) {
+    public record PreferencesUpdate(@NotNull(message = "La préférence weeklyReport est obligatoire") Boolean weeklyReport) {
     }
 
     @PostMapping("/api/reports/weekly/preview")
@@ -58,7 +58,7 @@ public class WeeklyReportController {
     @Operation(summary = "Send the weekly coaching email now (ADMIN)", description = "202 and sends in the background; 503 when SMTP is not configured")
     public ResponseEntity<Map<String, Object>> sendNow() {
         if (!service.mailConfigured()) {
-            throw ApiException.serviceUnavailable("Email is not configured (set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)");
+            throw ApiException.serviceUnavailable("Le courriel n'est pas configuré (SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)");
         }
         executor.execute(() -> {
             try {
@@ -81,7 +81,7 @@ public class WeeklyReportController {
     @Operation(summary = "Update my preferences", description = "{ weeklyReport: boolean } turns the Monday coaching email on or off")
     public ResponseEntity<Preferences> updatePreferences(@Valid @RequestBody PreferencesUpdate request) {
         User user = userRepository.findById(authenticationFacade.getCurrentUser().getId())
-                .orElseThrow(() -> ApiException.notFound("User not found"));
+                .orElseThrow(() -> ApiException.notFound("Utilisateur introuvable"));
         user.setWeeklyReport(request.weeklyReport());
         userRepository.saveAndFlush(user);
         return ResponseEntity.ok(new Preferences(request.weeklyReport()));

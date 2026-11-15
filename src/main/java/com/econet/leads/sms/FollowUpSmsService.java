@@ -30,10 +30,13 @@ public class FollowUpSmsService {
     private final ContactRepository contactRepository;
     private final Clock clock;
     private final String companyName;
+    private final String companyContact;
 
     public FollowUpSmsService(SmsService smsService, AlertService alertService, SmsRateLimiter rateLimiter,
                               BusinessRepository businessRepository, ContactRepository contactRepository, Clock clock,
-                              @Value("${app.company.name:EcoNet Propreté}") String companyName) {
+                              @Value("${app.company.name:EcoNet Propreté}") String companyName,
+                              @Value("${app.company.contact:}") String companyContact) {
+        this.companyContact = companyContact;
         this.smsService = smsService;
         this.alertService = alertService;
         this.rateLimiter = rateLimiter;
@@ -91,6 +94,9 @@ public class FollowUpSmsService {
     }
 
     private String render(Business lead, String templateKey, String language, User caller) {
+        if (lead.getLeadStatus() == com.econet.leads.model.LeadStatus.DO_NOT_CALL) {
+            throw ApiException.conflict("Ce lead ne doit pas être contacté (Ne pas appeler)");
+        }
         String key = templateKey == null ? "" : templateKey.trim().toLowerCase(Locale.ROOT);
         if (!SmsTemplates.KEYS.contains(key)) {
             throw ApiException.badRequest("templateKey doit être l'un de " + SmsTemplates.KEYS);
@@ -100,7 +106,7 @@ public class FollowUpSmsService {
         if (!QualificationService.LANGUAGES.contains(lang)) {
             throw ApiException.badRequest("language doit être fr ou en");
         }
-        return SmsTemplates.render(key, lang, lead.getBusinessName(), caller.getUsername(), companyName);
+        return SmsTemplates.render(key, lang, lead.getBusinessName(), caller.getUsername(), companyName, companyContact);
     }
 
     private static String firstNonBlank(String... values) {

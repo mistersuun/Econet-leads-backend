@@ -64,6 +64,8 @@ The workflow `.github/workflows/keep-awake.yml` calls `/actuator/health` every 1
 - GitHub **disables scheduled workflows after 60 days without any activity** in the repository. If the pings stop, open Actions and click **Enable workflow** (a push or a manual run also resets the counter).
 - Alternative that does not depend on GitHub: create a free job at cron-job.org that calls `https://econet-leads-api.onrender.com/actuator/health` every 10 minutes during your hours.
 - If your Render address differs (step 2), edit the URL in the workflow file.
+- Outside those hours (evenings and weekends) the free server sleeps, so **website requests are only picked up, and the owner alert text and email only go out, once something wakes it** (the next ping or a CRM visit, then up to 5 minutes for the first check). A request sent on a Saturday morning is alerted on Monday. For immediate alerts at any hour, use a paid plan (Starter) or extend the cron lines in the workflow.
+- The daily saved searches and the 30-day cleanup of Google data check every hour and when the server starts, and run once per due day as soon as the server is awake. The Monday coaching email depends on the server being awake at 07:30 Montréal; the Monday 11:00 UTC ping covers it.
 
 ## 8. Replace the old secrets (important)
 
@@ -87,8 +89,9 @@ All of these are optional. When one is missing, the matching feature shows "non 
 | ALERT_EMAIL | Who receives an email for each new website request (needs the SMTP settings of step 3). | Your email address(es), separated by commas. |
 | GOOGLE_PLACES_API_KEY | Google ratings and reviews on a lead. | Google Cloud console → APIs & Services → enable **Places API (New)** → Credentials → API key (restrict it to that API). |
 | PLACES_DAILY_LIMIT | Maximum Google lookups per day (default 100). | A number you choose, to cap the cost. |
+| COMPANY_CONTACT | Contact line added to every follow-up text before "Répondez STOP" (Canadian anti-spam law asks for a way to reach the sender). | Your phone number or website, e.g. `514 555-0123 econet.ca`. |
 | GOOGLE_REVIEW_URL | Link sent to clients to ask for a Google review. | Google Business Profile → **Ask for reviews** → copy the link. |
 | WEEKLY_REPORT_CRON | When the Monday coaching email goes out (Montréal time; needs the SMTP settings of step 3). | Do not set it for Monday 7:30 (`0 30 7 * * MON`); otherwise a Spring cron with seconds, e.g. `0 0 8 * * MON`. |
 | OVERPASS_URL | A preferred OpenStreetMap server for map discovery, tried first. | Leave empty to use the built-in list of public servers (the server falls back to the next one on error and remembers the one that works for an hour). |
 
-Passwords: each user can change their own password in **Réglages → Mon compte**; an administrator can reset someone else's in **Réglages → Équipe**. Sessions already open stay valid until they expire (the login lasts 24 hours); to force everyone out, replace JWT_REFRESH_SECRET and JWT_SECRET as in step 8.
+Passwords: each user can change their own password in **Réglages → Mon compte**; an administrator can reset someone else's in **Réglages → Équipe**. After a password change or reset, a session that is already open keeps working until its current login expires (at most 24 hours), then cannot renew itself; to cut an account off immediately, deactivate it. To force everyone out, replace JWT_REFRESH_SECRET and JWT_SECRET as in step 8.

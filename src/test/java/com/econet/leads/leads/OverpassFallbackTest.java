@@ -109,6 +109,27 @@ class OverpassFallbackTest {
     }
 
     @Test
+    void blockedOrMovedMirrorFallsThroughToTheNextOne() throws Exception {
+        String forbidden = fake("forbidden", 403, "blocked");
+        String missing = fake("missing", 404, "not here");
+        String good = fake("good", 200, OK);
+        OverpassClient client = client(missing, forbidden, good);
+        assertThat(client.run("q")).hasSize(1);
+        assertThat(hits).containsExactly("missing", "forbidden", "good");
+        assertThat(client.endpointOrder().get(0)).isEqualTo(good);
+    }
+
+    @Test
+    void runtimeErrorRemarkIsNotASuccess() throws Exception {
+        String loaded = fake("loaded", 200, "{\"remark\":\"runtime error: Query timed out in \\\"query\\\" at line 3\",\"elements\":[]}");
+        String good = fake("good", 200, OK);
+        OverpassClient client = client("", loaded, good);
+        assertThat(client.run("q")).hasSize(1);
+        assertThat(hits).containsExactly("loaded", "good");
+        assertThat(client.endpointOrder().get(0)).isEqualTo(good);
+    }
+
+    @Test
     void noEndpointConfiguredIsA502() {
         assertThatThrownBy(() -> client("").run("q")).isInstanceOf(ApiException.class);
     }

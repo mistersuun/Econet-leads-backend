@@ -79,7 +79,7 @@ public class TenderController {
 
     static Sort buildSort(String sortBy, String sortDirection) {
         if (!SORTABLE_FIELDS.contains(sortBy)) {
-            throw ApiException.badRequest("sortBy must be one of " + new TreeSet<>(SORTABLE_FIELDS));
+            throw ApiException.badRequest("sortBy doit être l'un de " + new TreeSet<>(SORTABLE_FIELDS));
         }
         Sort.Direction direction;
         if (sortDirection == null || sortDirection.isBlank()) {
@@ -90,7 +90,7 @@ public class TenderController {
         } else if ("DESC".equalsIgnoreCase(sortDirection)) {
             direction = Sort.Direction.DESC;
         } else {
-            throw ApiException.badRequest("sortDirection must be ASC or DESC");
+            throw ApiException.badRequest("sortDirection doit être ASC ou DESC");
         }
         // nulls last + id tie-breaker are applied by TenderService (criteria API has no NULLS LAST)
         return Sort.by(direction, sortBy);
@@ -108,7 +108,7 @@ public class TenderController {
                 try {
                     result.add(parser.apply(t.toUpperCase(Locale.ROOT)));
                 } catch (IllegalArgumentException e) {
-                    throw ApiException.badRequest("Invalid " + name + " '" + t + "', expected one of " + Arrays.toString(all));
+                    throw ApiException.badRequest("Valeur invalide pour " + name + " : « " + t + " », attendu : " + Arrays.toString(all));
                 }
             }
         }

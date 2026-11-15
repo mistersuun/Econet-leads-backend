@@ -28,6 +28,8 @@ public class JwtTokenProvider {
     @Value("${app.jwt.refresh-expiration-ms}")
     private long jwtRefreshExpirationMs;
 
+    private static final String PASSWORD_STAMP_CLAIM = "pv";
+
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
@@ -53,16 +55,44 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    public String generateRefreshToken(String username) {
+    /**
+     * Refresh token bound to the current password: it carries a stamp derived from the password
+     * hash, so changing or resetting the password makes every earlier refresh token unusable.
+     */
+    public String generateRefreshToken(String username, String passwordHash) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtRefreshExpirationMs);
 
         return Jwts.builder()
                 .subject(username)
+                .claim(PASSWORD_STAMP_CLAIM, passwordStamp(passwordHash))
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(getRefreshSigningKey())
                 .compact();
+    }
+
+    /** True when the refresh token was issued for this password hash (constant-time comparison). */
+    public boolean refreshTokenMatchesPassword(String refreshToken, String passwordHash) {
+        try {
+            String stamp = Jwts.parser().verifyWith(getRefreshSigningKey()).build()
+                    .parseSignedClaims(refreshToken).getPayload().get(PASSWORD_STAMP_CLAIM, String.class);
+            return stamp != null && java.security.MessageDigest.isEqual(
+                    stamp.getBytes(StandardCharsets.UTF_8), passwordStamp(passwordHash).getBytes(StandardCharsets.UTF_8));
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private String passwordStamp(String passwordHash) {
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(jwtRefreshSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] digest = mac.doFinal((passwordHash == null ? "" : passwordHash).getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest, 0, 8);
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     public String getUsernameFromToken(String token) {

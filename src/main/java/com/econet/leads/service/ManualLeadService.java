@@ -46,7 +46,7 @@ public class ManualLeadService {
     public Business create(BusinessCreateRequest request, User creator) {
         LeadStatus status = request.getLeadStatus() == null ? LeadStatus.NEW : request.getLeadStatus();
         if (!ALLOWED_STATUSES.contains(status)) {
-            throw ApiException.badRequest("leadStatus must be one of " + ALLOWED_STATUSES + " when adding a lead");
+            throw ApiException.badRequest("leadStatus doit être l'un de " + ALLOWED_STATUSES + " à l'ajout d'un lead");
         }
 
         Business business = new Business();

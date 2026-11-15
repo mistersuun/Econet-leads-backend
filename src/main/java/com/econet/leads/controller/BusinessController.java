@@ -271,7 +271,7 @@ public class BusinessController {
                 try {
                     filters.setAssignedToUserId(UUID.fromString(assignedTo.trim()));
                 } catch (IllegalArgumentException e) {
-                    throw ApiException.badRequest("assignedTo must be a user id or 'me'");
+                    throw ApiException.badRequest("assignedTo doit être un identifiant d'utilisateur ou « me »");
                 }
             }
         }
@@ -280,7 +280,7 @@ public class BusinessController {
 
     static Sort buildSort(String sortBy, String sortDirection) {
         if (!SORTABLE_FIELDS.contains(sortBy)) {
-            throw ApiException.badRequest("sortBy must be one of " + new TreeSet<>(SORTABLE_FIELDS));
+            throw ApiException.badRequest("sortBy doit être l'un de " + new TreeSet<>(SORTABLE_FIELDS));
         }
         Sort.Direction direction;
         if ("ASC".equalsIgnoreCase(sortDirection)) {
@@ -288,7 +288,7 @@ public class BusinessController {
         } else if ("DESC".equalsIgnoreCase(sortDirection)) {
             direction = Sort.Direction.DESC;
         } else {
-            throw ApiException.badRequest("sortDirection must be ASC or DESC");
+            throw ApiException.badRequest("sortDirection doit être ASC ou DESC");
         }
         // id as tie-breaker keeps pagination stable
         return Sort.by(direction, sortBy).and(Sort.by(Sort.Direction.ASC, "id"));

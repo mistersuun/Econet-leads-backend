@@ -9,8 +9,6 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.Nullable;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authentication.DisabledException;
-import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -81,11 +79,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return error(HttpStatus.FORBIDDEN, "Accès refusé");
     }
 
-    @ExceptionHandler({DisabledException.class, LockedException.class})
-    public ResponseEntity<Object> handleDisabled(AuthenticationException ex) {
-        return error(HttpStatus.UNAUTHORIZED, "Compte désactivé");
-    }
-
+    // Deactivated accounts get the same answer as a wrong password: Spring checks the account state
+    // before the password, so a distinct message would reveal which usernames exist.
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<Object> handleAuthentication(AuthenticationException ex) {
         return error(HttpStatus.UNAUTHORIZED, "Nom d'utilisateur ou mot de passe invalide");

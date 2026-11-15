@@ -25,7 +25,12 @@ import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
@@ -70,6 +75,8 @@ public class ClientService {
     private final Clock clock;
     private final String reviewUrl;
     private final String companyName;
+    private final TransactionTemplate newTx;
+    private final com.econet.leads.repository.BusinessRepository businessRepository;
 
     public ClientService(ClientRepository clientRepository,
                          ContactRepository contactRepository,
@@ -78,6 +85,8 @@ public class ClientService {
                          MailSettings mailSettings,
                          EmailRateLimiter rateLimiter,
                          Clock clock,
+                         PlatformTransactionManager transactionManager,
+                         com.econet.leads.repository.BusinessRepository businessRepository,
                          @Value("${app.reviews.google-url:}") String reviewUrl,
                          @Value("${app.company.name:EcoNet Propreté}") String companyName) {
         this.clientRepository = clientRepository;
@@ -89,21 +98,50 @@ public class ClientService {
         this.clock = clock;
         this.reviewUrl = reviewUrl == null ? "" : reviewUrl.trim();
         this.companyName = companyName;
+        this.newTx = new TransactionTemplate(transactionManager);
+        this.newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.businessRepository = businessRepository;
     }
 
     // ------------------------------------------------------------------ creation on WON
 
     /**
      * Called by the status-update paths when a lead becomes WON. Creates the client when none exists
-     * (idempotent). Never throws: a failure here must not undo the status change.
+     * (idempotent). Never throws and never touches the caller's transaction: the work runs in its own
+     * transaction once the status change has committed, so a failure here (logged) cannot undo it.
+     */
+    public void onLeadWon(Business lead) {
+        UUID leadId = lead.getId();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    createClientInOwnTransaction(leadId);
+                }
+            });
+        } else {
+            createClientInOwnTransaction(leadId);
+        }
+    }
+
+    private void createClientInOwnTransaction(UUID leadId) {
+        try {
+            newTx.executeWithoutResult(status -> businessRepository.findById(leadId).ifPresent(this::ensureClient));
+        } catch (RuntimeException e) {
+            log.warn("Could not create the client of lead {}: {}", leadId, e.getMessage());
+        }
+    }
+
+    /**
+     * A quote was just accepted for a lead that already has a client: the client takes the quote's
+     * service, frequency and price. When there is no client yet, the WON hook creates it from the quote.
      */
     @Transactional
-    public void onLeadWon(Business lead) {
-        try {
-            ensureClient(lead);
-        } catch (RuntimeException e) {
-            log.warn("Could not create the client of lead {}: {}", lead.getId(), e.getMessage());
-        }
+    public void refreshFromAcceptedQuote(UUID businessId) {
+        clientRepository.findByBusinessId(businessId).ifPresent(c -> {
+            applyAcceptedQuote(businessId, c);
+            clientRepository.save(c);
+        });
     }
 
     Client ensureClient(Business lead) {
@@ -115,16 +153,30 @@ public class ClientService {
         c.setStartDate(LocalDate.now(clock));
         c.setService(DEFAULT_SERVICE);
         c.setFrequency("one-time");
-        c.setPricePerVisit(lead.getEstimatedValue() != null ? lead.getEstimatedValue() : BigDecimal.ZERO);
 
         String wanted = QualificationService.text(lead.getQualification(), "frequencyWanted");
         if (wanted != null && Client.FREQUENCIES.contains(wanted)) {
             c.setFrequency(wanted);
         }
+        c.setPricePerVisit(perVisitFromYearlyValue(lead.getEstimatedValue(), c.getFrequency()));
         applyAcceptedQuote(lead.getId(), c);
         c = clientRepository.saveAndFlush(c);
         log.info("Client created for won lead {} ({}, {})", lead.getId(), c.getService(), c.getFrequency());
         return c;
+    }
+
+    /** The CRM's estimated value is a yearly amount; a one-time job keeps the whole amount. */
+    static BigDecimal perVisitFromYearlyValue(BigDecimal yearly, String frequency) {
+        if (yearly == null) {
+            return BigDecimal.ZERO;
+        }
+        int visitsPerYear = switch (frequency == null ? "" : frequency) {
+            case "weekly" -> 52;
+            case "bi-weekly" -> 26;
+            case "monthly" -> 12;
+            default -> 1;
+        };
+        return yearly.divide(BigDecimal.valueOf(visitsPerYear), 2, RoundingMode.HALF_UP);
     }
 
     /** Takes service, frequency and price per visit from the latest accepted quote of the lead (V15), if any. */
@@ -180,8 +232,8 @@ public class ClientService {
         long reviews = 0;
         for (Client c : all) {
             mrr = mrr.add(monthlyValue(c));
-            if (c.getContractEndDate() != null && !c.getContractEndDate().isBefore(today)
-                    && !c.getContractEndDate().isAfter(today.plusDays(RENEWAL_WINDOW_DAYS))) {
+            // overdue renewals (end date already passed, still active) count too
+            if (c.getContractEndDate() != null && !c.getContractEndDate().isAfter(today.plusDays(RENEWAL_WINDOW_DAYS))) {
                 renewals++;
             }
             if (c.getFirstCleaningDoneAt() != null && c.getReviewRequestedAt() == null) {
@@ -310,8 +362,8 @@ public class ClientService {
                 helper.setText(message, false);
                 sender.send(mime);
             } catch (MessagingException | UnsupportedEncodingException | MailException e) {
-                log.error("Review request email for client {} failed: {}", c.getId(), e.getMessage());
-                throw ApiException.badGateway("Le courriel n'a pas pu être envoyé : " + e.getMessage());
+                log.error("Review request email for client {} failed ({})", c.getId(), e.getClass().getSimpleName());
+                throw ApiException.badGateway("Le courriel n'a pas pu être envoyé");
             }
             Contact contact = new Contact();
             contact.setBusiness(lead);
@@ -363,12 +415,13 @@ public class ClientService {
         LocalDate today = now.toLocalDate();
         List<NotificationDTO> out = new ArrayList<>();
 
-        for (Client c : clientRepository.findRenewals(today, today.plusDays(RENEWAL_WINDOW_DAYS), user.getId())) {
+        for (Client c : clientRepository.findRenewals(LocalDate.EPOCH, today.plusDays(RENEWAL_WINDOW_DAYS), user.getId())) {
             long days = ChronoUnit.DAYS.between(today, c.getContractEndDate());
+            String when = days < 0 ? "Contrat échu depuis " + (-days) + " jour" + (days < -1 ? "s" : "")
+                    : "Contrat à renouveler " + (days == 0 ? "aujourd'hui" : "dans " + days + " jour" + (days > 1 ? "s" : ""));
             out.add(new NotificationDTO("contract_renewal:" + c.getId(), NotificationDTO.CONTRACT_RENEWAL,
                     c.getBusiness().getBusinessName(),
-                    "Contrat à renouveler " + (days == 0 ? "aujourd'hui" : "dans " + days + " jour" + (days > 1 ? "s" : ""))
-                            + " (" + DAY.format(c.getContractEndDate()) + ")",
+                    when + " (" + DAY.format(c.getContractEndDate()) + ")",
                     c.getBusiness().getId(), null, c.getContractEndDate().atStartOfDay()));
         }
         for (Client c : clientRepository.findReviewDue(now.minus(REVIEW_DELAY), user.getId())) {

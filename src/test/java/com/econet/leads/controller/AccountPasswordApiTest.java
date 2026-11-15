@@ -69,6 +69,34 @@ class AccountPasswordApiTest {
     }
 
     @Test
+    void passwordChangeEndsExistingSessions() throws Exception {
+        String login = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"paula.pw\",\"password\":\"ancien-mot-de-passe\"}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String refresh = new com.fasterxml.jackson.databind.ObjectMapper().readTree(login).get("refreshToken").asText();
+        String refreshBody = "{\"refreshToken\":\"" + refresh + "\"}";
+
+        mvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody))
+                .andExpect(status().isOk());
+        mvc.perform(put("/api/users/{id}/password", paula.getId()).with(ADA).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newPassword\":\"mot-de-passe-reinitialise\"}"))
+                .andExpect(status().isNoContent());
+        mvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deactivatedAccountLooksLikeAWrongPasswordAtLogin() throws Exception {
+        User u = ensure("gone.pw", User.UserRole.USER, "ancien-mot-de-passe");
+        u.setActive(false);
+        users.save(u);
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"gone.pw\",\"password\":\"n-importe-quoi\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("Nom d'utilisateur ou mot de passe invalide"));
+    }
+
+    @Test
     void wrongCurrentPasswordIs400InFrench() throws Exception {
         mvc.perform(post("/api/me/password").with(PAULA).contentType(MediaType.APPLICATION_JSON)
                         .content(body("mauvais", "nouveau-mot-de-passe-1")))

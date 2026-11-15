@@ -27,7 +27,7 @@ public class TargetsService {
     public TargetsDTO.Targets update(UUID userId, TargetsDTO.Update request) {
         User user = userRepository.findById(userId).orElseThrow(() -> ApiException.notFound("Utilisateur introuvable : " + userId));
         if (request.effectiveCallTarget() == null && request.effectiveConversationTarget() == null) {
-            throw ApiException.badRequest("callTarget or conversationTarget is required");
+            throw ApiException.badRequest("callTarget ou conversationTarget est requis");
         }
         if (request.effectiveCallTarget() != null) {
             user.setDailyCallTarget(request.effectiveCallTarget());

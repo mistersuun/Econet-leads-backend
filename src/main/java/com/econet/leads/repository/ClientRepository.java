@@ -27,7 +27,9 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
 
     boolean existsByBusinessId(UUID businessId);
 
-    /** Active clients whose renewal date falls in [from, to], soonest first. */
+    Optional<Client> findByBusinessId(UUID businessId);
+
+    /** Active clients whose renewal date falls in [from, to] (pass an early {@code from} to include overdue ones), soonest first. */
     @Query("SELECT c FROM Client c JOIN FETCH c.business b LEFT JOIN b.assignedTo u "
             + "WHERE c.status = 'active' AND c.contractEndDate BETWEEN :from AND :to "
             + "AND (u IS NULL OR u.id = :userId) ORDER BY c.contractEndDate ASC")

@@ -24,13 +24,15 @@ CREATE INDEX idx_clients_contract_end ON clients(contract_end_date) WHERE status
 CREATE TRIGGER update_clients_updated_at BEFORE UPDATE ON clients
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Leads already WON before this migration become clients (price from the estimated value when known).
+-- Leads already WON before this migration become clients. The estimated value is a yearly amount,
+-- so the price per visit is that amount divided by the visits per year (one-time keeps it whole).
 INSERT INTO clients (business_id, service, frequency, price_per_visit, start_date)
-SELECT b.id,
-       'Entretien ménager',
-       CASE WHEN b.qualification ->> 'frequencyWanted' IN ('weekly', 'bi-weekly', 'monthly', 'one-time')
-            THEN b.qualification ->> 'frequencyWanted' ELSE 'one-time' END,
-       COALESCE(b.estimated_value, 0),
-       CAST(COALESCE(b.updated_at, CURRENT_TIMESTAMP) AS DATE)
-FROM businesses b
-WHERE b.lead_status = 'WON';
+SELECT w.id, 'Entretien ménager', w.freq,
+       ROUND(COALESCE(w.estimated_value, 0) /
+             CASE w.freq WHEN 'weekly' THEN 52 WHEN 'bi-weekly' THEN 26 WHEN 'monthly' THEN 12 ELSE 1 END, 2),
+       CAST(COALESCE(w.updated_at, CURRENT_TIMESTAMP) AS DATE)
+FROM (SELECT b.id, b.estimated_value, b.updated_at,
+             CASE WHEN b.qualification ->> 'frequencyWanted' IN ('weekly', 'bi-weekly', 'monthly', 'one-time')
+                  THEN b.qualification ->> 'frequencyWanted' ELSE 'one-time' END AS freq
+      FROM businesses b
+      WHERE b.lead_status = 'WON') w;

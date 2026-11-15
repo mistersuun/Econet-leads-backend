@@ -86,7 +86,7 @@ public class SmsService {
             }
             String detail = json != null && json.hasNonNull("message") ? json.get("message").asText() : "HTTP " + response.statusCode();
             log.warn("SMS to {} refused by the provider (HTTP {})", mask(toE164), response.statusCode());
-            return new Result(false, null, truncate(detail, 300));
+            return new Result(false, null, truncate(maskNumbers(detail), 300));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return new Result(false, null, "Envoi interrompu");
@@ -106,6 +106,15 @@ public class SmsService {
 
     private static String enc(String s) {
         return URLEncoder.encode(s == null ? "" : s, StandardCharsets.UTF_8);
+    }
+
+    /** Provider messages quote the destination ("The 'To' number +1514... is not valid"): keep only the last 4 digits. */
+    static String maskNumbers(String text) {
+        if (text == null) {
+            return null;
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\+?\\d[\\d\\s().-]{5,}\\d").matcher(text);
+        return m.replaceAll(r -> java.util.regex.Matcher.quoteReplacement(mask(r.group())));
     }
 
     static String truncate(String s, int max) {

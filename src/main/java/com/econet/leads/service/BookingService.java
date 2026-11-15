@@ -418,7 +418,7 @@ public class BookingService {
                     "text/calendar; charset=UTF-8; method=REQUEST");
             sender.send(message);
         } catch (MessagingException | UnsupportedEncodingException | MailException e) {
-            log.warn("Visit invite email failed: {}", e.getMessage());
+            log.warn("Visit invite email failed ({})", e.getClass().getSimpleName());
         }
     }
 

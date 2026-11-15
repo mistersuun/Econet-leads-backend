@@ -31,12 +31,21 @@ public final class SmsTemplates {
 
     /** Rendered body, always ending with the opt-out line. */
     public static String render(String key, String language, String businessName, String callerName, String companyName) {
+        return render(key, language, businessName, callerName, companyName, null);
+    }
+
+    /**
+     * Same, with the sender's contact line (CASL: a commercial message must identify the sender and
+     * give a way to reach it, e.g. a phone number or website) placed before the opt-out line.
+     */
+    public static String render(String key, String language, String businessName, String callerName, String companyName,
+                                String contact) {
         boolean en = "en".equals(language);
         String text = (en ? EN : FR).get(key)
                 .replace("{businessName}", nz(businessName))
                 .replace("{callerName}", nz(callerName))
                 .replace("{companyName}", nz(companyName));
-        return text + " " + (en ? STOP_EN : STOP_FR);
+        return text + (contact == null || contact.isBlank() ? "" : " " + contact.strip()) + " " + (en ? STOP_EN : STOP_FR);
     }
 
     private static String nz(String s) {

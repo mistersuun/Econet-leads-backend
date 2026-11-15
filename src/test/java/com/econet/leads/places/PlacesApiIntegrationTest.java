@@ -332,6 +332,24 @@ class PlacesApiIntegrationTest {
     }
 
     @Test
+    void purgeFollowsTheAgeOfTheDataNotTheLastLookup() throws Exception {
+        Business b = lead("Café Vieux Fonds", "Montréal", "5145550199");
+        Map<String, Object> places = new LinkedHashMap<>();
+        places.put("placeId", "ChIJstale");
+        places.put("cleanlinessSignals", List.of(Map.of("text", "sale", "rating", 1)));
+        places.put("fetchedAt", LocalDateTime.now().minusDays(40).withNano(0).toString());
+        b.setPlaces(places);
+        b.setPlacesCheckedAt(LocalDateTime.now().minusDays(5)); // a later lookup found no match
+        b.setPlacesCleanliness(true);
+        businessRepository.save(b);
+
+        assertThat(placesService.purgeExpired()).isGreaterThanOrEqualTo(1);
+        Business purged = businessRepository.findById(b.getId()).orElseThrow();
+        assertThat(purged.getPlaces()).containsOnlyKeys("placeId", "fetchedAt", "expired");
+        assertThat(purged.isPlacesCleanliness()).isFalse();
+    }
+
+    @Test
     void cleanlinessKeywordsMatchFrenchAndEnglishWholeWords() {
         for (String text : List.of("Toilettes sales", "Un peu de poussière partout", "Très malpropre", "L'odeur était forte",
                 "dirty floor", "so much dust", "The bathroom was awful", "bad smell", "Propreté douteuse")) {
@@ -353,7 +371,8 @@ class PlacesApiIntegrationTest {
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
         String id = created.get("id").asText();
 
-        mvc.perform(get("/api/saved-searches").with(VIEWER)).andExpect(status().isOk()).andExpect(jsonPath("$[0].name").value("Restos Montréal"));
+        mvc.perform(get("/api/saved-searches").with(ALICE)).andExpect(status().isOk()).andExpect(jsonPath("$[0].name").value("Restos Montréal"));
+        mvc.perform(get("/api/saved-searches").with(VIEWER)).andExpect(status().isForbidden());
         mvc.perform(post("/api/saved-searches").with(VIEWER).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
 
         mvc.perform(put("/api/saved-searches/" + id).with(ALICE).contentType(MediaType.APPLICATION_JSON)

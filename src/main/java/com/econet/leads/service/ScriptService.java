@@ -47,7 +47,7 @@ public class ScriptService {
         }
         List<CallScript> defaults = repository.findByActiveTrueAndLanguageAndBusinessTypeIsNullOrderByUpdatedAtDesc(lang);
         if (defaults.isEmpty()) {
-            throw ApiException.notFound("No call script for language " + lang);
+            throw ApiException.notFound("Aucun script d'appel pour la langue " + lang);
         }
         return ScriptDTOs.Script.from(defaults.get(0), type != null && !type.isEmpty());
     }
@@ -80,10 +80,10 @@ public class ScriptService {
         List<ScriptSection> sections = new ArrayList<>();
         for (ScriptSection s : request.getSections()) {
             if (s == null || s.getKey() == null || !SECTION_KEYS.contains(s.getKey())) {
-                throw ApiException.badRequest("section key must be one of " + SECTION_KEYS);
+                throw ApiException.badRequest("La clé de section doit être l'une de " + SECTION_KEYS);
             }
             if (s.getBody() == null) {
-                throw ApiException.badRequest("section '" + s.getKey() + "' needs a body");
+                throw ApiException.badRequest("La section « " + s.getKey() + " » doit avoir un contenu");
             }
             sections.add(new ScriptSection(s.getKey(), s.getTitle() == null ? s.getKey() : s.getTitle().trim(), s.getBody()));
         }
@@ -98,7 +98,7 @@ public class ScriptService {
     static String normalizeLanguage(String language) {
         String lang = language == null || language.isBlank() ? "fr" : language.trim().toLowerCase(Locale.ROOT);
         if (!LANGUAGES.contains(lang)) {
-            throw ApiException.badRequest("language must be fr or en");
+            throw ApiException.badRequest("La langue doit être fr ou en");
         }
         return lang;
     }

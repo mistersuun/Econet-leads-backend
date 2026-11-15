@@ -26,6 +26,20 @@ class SmsServiceTest {
     }
 
     @Test
+    void providerMessagesLoseTheFullNumber() {
+        assertThat(SmsService.maskNumbers("The 'To' number +15145551234 is not a valid phone number."))
+                .doesNotContain("5145551234").contains("***1234");
+        assertThat(SmsService.maskNumbers("Region not enabled: +1 (514) 555-1234.")).doesNotContain("555-1234").contains("***1234");
+        assertThat(SmsService.maskNumbers("Authenticate")).isEqualTo("Authenticate");
+    }
+
+    @Test
+    void contactLineComesBeforeTheOptOutLine() {
+        assertThat(SmsTemplates.render("missed_call", "fr", "Clinique", "alice", "EcoNet", "514 555-0123 econet.ca"))
+                .contains("514 555-0123 econet.ca Répondez STOP").endsWith("Répondez STOP pour vous désabonner.");
+    }
+
+    @Test
     void templatesEndWithTheOptOutLine() {
         for (String key : SmsTemplates.KEYS) {
             assertThat(SmsTemplates.render(key, "fr", "Clinique Soleil", "alice", "EcoNet"))

@@ -16,6 +16,9 @@ import java.util.UUID;
 @Repository
 public interface ContactRepository extends JpaRepository<Contact, UUID> {
 
+    boolean existsByBusinessIdAndContactStatus(UUID businessId, String contactStatus);
+
+
     // Find all contacts for a business with eager loading
     @Query("SELECT c FROM Contact c LEFT JOIN FETCH c.business LEFT JOIN FETCH c.user WHERE c.business.id = :businessId ORDER BY c.contactDate DESC")
     List<Contact> findByBusinessIdOrderByContactDateDesc(@Param("businessId") UUID businessId);

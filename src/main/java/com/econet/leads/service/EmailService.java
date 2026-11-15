@@ -115,11 +115,11 @@ public class EmailService {
         EmailTemplate template = templateRepository.findById(id)
                 .orElseThrow(() -> ApiException.notFound("Modèle de courriel introuvable : " + id));
         if (request.getSubject() != null) {
-            if (request.getSubject().isBlank()) throw ApiException.badRequest("subject must not be blank");
+            if (request.getSubject().isBlank()) throw ApiException.badRequest("L'objet ne doit pas être vide");
             template.setSubject(request.getSubject().trim());
         }
         if (request.getBody() != null) {
-            if (request.getBody().isBlank()) throw ApiException.badRequest("body must not be blank");
+            if (request.getBody().isBlank()) throw ApiException.badRequest("Le message ne doit pas être vide");
             template.setBody(request.getBody());
         }
         if (request.getActive() != null) {
@@ -184,7 +184,7 @@ public class EmailService {
             }
             sender.send(message);
         } catch (MessagingException | UnsupportedEncodingException | MailException e) {
-            log.error("Email to lead {} failed: {}", lead.getId(), e.getMessage());
+            log.error("Email to lead {} failed ({})", lead.getId(), e.getClass().getSimpleName());
             throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "Le courriel n'a pas pu être envoyé");
         }
 
@@ -211,20 +211,20 @@ public class EmailService {
     Rendered render(Business lead, EmailSendRequest request, User caller) {
         String key = request.getTemplateKey() == null ? "" : request.getTemplateKey().trim().toLowerCase(Locale.ROOT);
         if (!TEMPLATE_KEYS.contains(key)) {
-            throw ApiException.badRequest("templateKey must be one of " + TEMPLATE_KEYS);
+            throw ApiException.badRequest("templateKey doit être l'un de " + TEMPLATE_KEYS);
         }
         Map<String, Object> qualification = lead.getQualification();
         String language = request.getLanguage() != null && !request.getLanguage().isBlank()
                 ? request.getLanguage().trim().toLowerCase(Locale.ROOT)
                 : "en".equals(QualificationService.text(qualification, "language")) ? "en" : "fr";
         if (!QualificationService.LANGUAGES.contains(language)) {
-            throw ApiException.badRequest("language must be fr or en");
+            throw ApiException.badRequest("La langue doit être fr ou en");
         }
         if ("visit_confirmation".equals(key) && request.getVisitAt() == null) {
-            throw ApiException.badRequest("visitAt is required for the visit_confirmation template");
+            throw ApiException.badRequest("visitAt est requis pour le modèle visit_confirmation");
         }
         EmailTemplate template = templateRepository.findByKeyAndLanguageAndActiveTrue(key, language)
-                .orElseThrow(() -> ApiException.notFound("No active email template " + key + " (" + language + ")"));
+                .orElseThrow(() -> ApiException.notFound("Aucun modèle de courriel actif : " + key + " (" + language + ")"));
 
         Locale locale = "en".equals(language) ? Locale.CANADA : Locale.CANADA_FRENCH;
         Map<String, String> values = new LinkedHashMap<>();

@@ -39,8 +39,8 @@ public class LogCallRequest {
     private Integer durationSeconds;
 
     /** Objections heard during the call (V14): at most 5, each at most 80 characters. */
-    @Size(max = 5, message = "objections must contain at most 5 items")
-    private List<@Size(max = 80, message = "each objection must not exceed 80 characters") String> objections;
+    @Size(max = 5, message = "Au plus 5 objections")
+    private List<@Size(max = 80, message = "Chaque objection doit faire au plus 80 caractères") String> objections;
 
     /** Partial Qualification, merged into the lead (see QualificationService). */
     private Map<String, Object> qualification;

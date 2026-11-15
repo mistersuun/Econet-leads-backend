@@ -136,16 +136,24 @@ public class OverpassClient {
         try {
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             int code = response.statusCode();
-            if (code == 429 || code / 100 == 5) {
+            if (code == 400) {
+                // Overpass's answer to a bad query: another mirror would refuse it too
+                log.warn("Overpass {} answered HTTP 400 (bad query)", endpoint);
+                throw ApiException.badGateway(UNAVAILABLE);
+            }
+            if (code / 100 != 2) {
+                // 429, 5xx, but also 403/404/...: a blocked or moved mirror says nothing about the query
                 log.warn("Overpass {} answered HTTP {}, trying the next endpoint", endpoint, code);
                 return null;
             }
-            if (code / 100 != 2) {
-                // other 4xx: the query itself is at fault, another mirror would refuse it too
-                log.warn("Overpass {} answered HTTP {}", endpoint, code);
-                throw ApiException.badGateway(UNAVAILABLE);
+            JsonNode root = mapper.readTree(response.body());
+            String remark = root.path("remark").asText("");
+            if (remark.contains("runtime error") || remark.contains("Query timed out") || remark.contains("out of memory")) {
+                // an overloaded mirror answers 200 with an empty or partial list and a remark
+                log.warn("Overpass {} reported a runtime problem, trying the next endpoint", endpoint);
+                return null;
             }
-            JsonNode elements = mapper.readTree(response.body()).path("elements");
+            JsonNode elements = root.path("elements");
             if (!elements.isArray()) {
                 log.warn("Overpass {} answered without an 'elements' array, trying the next endpoint", endpoint);
                 return null;

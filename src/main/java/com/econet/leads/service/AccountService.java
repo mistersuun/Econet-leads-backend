@@ -13,9 +13,9 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Password changes. Refresh tokens are stateless JWTs (nothing is stored server side), so they
- * cannot be revoked individually: access tokens expire after 24 h, refresh tokens after 30 days,
- * and rotating JWT_REFRESH_SECRET logs everyone out at once.
+ * Password changes. Refresh tokens are stateless JWTs bound to the password hash, so changing or
+ * resetting a password ends every session at its next refresh. The access token already issued
+ * stays valid until it expires (24 h).
  */
 @Service
 @RequiredArgsConstructor

@@ -223,7 +223,7 @@ public class WeeklyReportService {
         lines.add("");
         lines.add("Ouvrir le CRM : " + r.crmUrl() + "/call");
         lines.add("");
-        lines.add("Pour ne plus recevoir ce courriel : Réglages, Préférences, « Courriel hebdomadaire ».");
+        lines.add("Pour ne plus recevoir ce courriel : Réglages, Mon compte, Préférences, « Courriel hebdomadaire ».");
         String text = String.join("\n", lines);
 
         StringBuilder h = new StringBuilder();
@@ -251,7 +251,7 @@ public class WeeklyReportService {
         }
         h.append("<p><a href=\"").append(esc(r.crmUrl() + "/call")).append("\" style=\"display:inline-block;background:#3f6b5a;color:#ffffff;")
                 .append("padding:10px 16px;border-radius:8px;text-decoration:none\">Ouvrir le CRM</a></p>");
-        h.append("<p style=\"color:#7b8794;font-size:13px\">Pour ne plus recevoir ce courriel : Réglages, Préférences, « Courriel hebdomadaire ».</p>");
+        h.append("<p style=\"color:#7b8794;font-size:13px\">Pour ne plus recevoir ce courriel : Réglages, Mon compte, Préférences, « Courriel hebdomadaire ».</p>");
         h.append("</div>");
         return new Rendered(subject, text, h.toString());
     }

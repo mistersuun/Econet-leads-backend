@@ -42,6 +42,7 @@ public class PlacesService {
     public static final String SOURCE_NAME = "Google Places – enrichissement";
     public static final int MAX_BULK = 50;
     public static final int CACHE_DAYS = 30;
+    static final int NO_MATCH_RETRY_DAYS = 7;
     static final int MAX_SIGNALS = 5;
     static final int SIGNAL_TEXT_MAX = 200;
     static final double NAME_THRESHOLD = 0.8;
@@ -134,6 +135,12 @@ public class PlacesService {
         return importService.startTask(source, jobId -> runBulk(jobId, source, new ArrayList<>(unique)));
     }
 
+    /** Looked up in the last week and nothing confident came back: do not spend the daily budget on it again. */
+    private boolean recentlyCheckedWithoutMatch(Business b) {
+        return b.getPlaces() == null && b.getPlacesCheckedAt() != null
+                && b.getPlacesCheckedAt().isAfter(LocalDateTime.now(clock).minusDays(NO_MATCH_RETRY_DAYS));
+    }
+
     void runBulk(UUID jobId, DataSource source, List<UUID> ids) {
         int processed = 0;
         int enriched = 0;
@@ -150,7 +157,7 @@ public class PlacesService {
                     if (b == null) {
                         failed++;
                         errors.append("Lead introuvable : ").append(id).append('\n');
-                    } else if (isFresh(b.getPlaces())) {
+                    } else if (isFresh(b.getPlaces()) || recentlyCheckedWithoutMatch(b)) {
                         skipped++;
                     } else {
                         Business after = enrichBusiness(id);
@@ -203,11 +210,12 @@ public class PlacesService {
 
     /** Strips expired Google data down to placeId + fetchedAt (daily, 06:00). Returns the number of leads purged. */
     public int purgeExpired() {
-        LocalDateTime cutoff = LocalDateTime.now(clock).minusDays(CACHE_DAYS);
         int purged = 0;
-        for (Business candidate : businessRepository.findByPlacesIsNotNullAndPlacesCheckedAtBefore(cutoff)) {
+        // freshness is the age of the data itself (places.fetchedAt), not of the last lookup: a later
+        // lookup without a confident match moves places_checked_at but leaves the old data in place
+        for (Business candidate : businessRepository.findByPlacesIsNotNull()) {
             Map<String, Object> places = candidate.getPlaces();
-            if (places == null || (places.size() <= 3 && Boolean.TRUE.equals(places.get("expired")))) {
+            if (places == null || isFresh(places) || (places.size() <= 3 && Boolean.TRUE.equals(places.get("expired")))) {
                 continue;
             }
             Map<String, Object> kept = expiredView(places);
@@ -327,6 +335,14 @@ public class PlacesService {
             s.put("text", clean.length() > SIGNAL_TEXT_MAX ? clean.substring(0, SIGNAL_TEXT_MAX - 1) + "…" : clean);
             s.put("rating", review.hasNonNull("rating") ? review.get("rating").asInt() : null);
             s.put("publishedAt", text(review, "publishTime"));
+            // Google's terms require the author to be shown with the review text
+            JsonNode author = review.path("authorAttribution");
+            if (author.hasNonNull("displayName")) {
+                s.put("authorName", author.get("displayName").asText());
+                if (author.hasNonNull("uri")) {
+                    s.put("authorUrl", author.get("uri").asText());
+                }
+            }
             signals.add(s);
             if (signals.size() >= MAX_SIGNALS) {
                 break;

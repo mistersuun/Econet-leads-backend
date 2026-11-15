@@ -93,7 +93,7 @@ public class Quote {
     @Column(name = "accepted_name", length = 200)
     private String acceptedName;
 
-    /** SHA-256 hex of the accepting IP; the IP itself is never stored. */
+    /** Keyed hash (HMAC-SHA-256) of the accepting IP and quote id; the IP itself is never stored. */
     @Column(name = "accepted_ip_hash", length = 64)
     private String acceptedIpHash;
 

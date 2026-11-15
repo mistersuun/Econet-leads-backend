@@ -89,6 +89,8 @@ public class SecurityConfig {
                         // Adding leads: duplicate hints, file imports and map discovery are caller tools, not read-only data
                         .requestMatchers(HttpMethod.GET, "/api/businesses/duplicates").hasAnyRole("ADMIN", "USER")
                         .requestMatchers("/api/imports/**", "/api/discover/**").hasAnyRole("ADMIN", "USER")
+                        // Saved searches and clients (contract prices, contacts, MRR): USER/ADMIN for reads too
+                        .requestMatchers("/api/saved-searches/**", "/api/clients/**", "/api/dashboard/clients").hasAnyRole("ADMIN", "USER")
 
                         // Every role (including VIEWER) can read: leads, queue, dashboard, contacts, /api/auth/me
                         .requestMatchers(HttpMethod.GET, "/api/**").authenticated()

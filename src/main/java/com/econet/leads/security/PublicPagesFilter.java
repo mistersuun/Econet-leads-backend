@@ -20,9 +20,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Behind Render the app runs with server.forward-headers-strategy=framework, so the request's
- * scheme, host and remote address already reflect X-Forwarded-*; Spring's own CORS check then
- * treats a same-site browser form post as same-origin.
+ * Behind Render the app runs with server.forward-headers-strategy=native, so Tomcat resolves the
+ * request's scheme, host and remote address from X-Forwarded-* (right-most untrusted hop for the
+ * address); Spring's own CORS check then treats a same-site browser form post as same-origin.
  *
  * Guard of the unauthenticated /public/** pages: hardening headers (noindex, no caching, strict CSP,
  * no referrer leaks of the secret token), a per-IP rate limit (default 30 requests / minute, 429
@@ -35,6 +35,7 @@ public class PublicPagesFilter extends OncePerRequestFilter {
     static final Duration WINDOW = Duration.ofMinutes(1);
     private static final int PURGE_THRESHOLD = 5000;
 
+    private volatile Instant lastPurge = Instant.EPOCH;
     private final Map<String, Deque<Instant>> hits = new ConcurrentHashMap<>();
     private final Clock clock;
     private final int limitPerMinute;
@@ -78,7 +79,8 @@ public class PublicPagesFilter extends OncePerRequestFilter {
     /** Sliding window of one minute per client address. */
     boolean allow(String ip) {
         Instant now = clock.instant();
-        if (hits.size() > PURGE_THRESHOLD) {
+        if (hits.size() > PURGE_THRESHOLD && now.isAfter(lastPurge.plusSeconds(10))) {
+            lastPurge = now;
             hits.entrySet().removeIf(e -> {
                 synchronized (e.getValue()) {
                     return e.getValue().isEmpty() || e.getValue().peekLast().isBefore(now.minus(WINDOW));

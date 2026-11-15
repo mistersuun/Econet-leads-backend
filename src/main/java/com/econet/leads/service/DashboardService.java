@@ -94,10 +94,10 @@ public class DashboardService {
         LocalDate end = to != null ? to : today;
         LocalDate start = from != null ? from : end.minusDays(DEFAULT_RANGE_DAYS - 1);
         if (start.isAfter(end)) {
-            throw ApiException.badRequest("'from' must be on or before 'to'");
+            throw ApiException.badRequest("La date de début doit précéder ou égaler la date de fin");
         }
         if (ChronoUnit.DAYS.between(start, end) + 1 > MAX_RANGE_DAYS) {
-            throw ApiException.badRequest("Date range must not exceed " + MAX_RANGE_DAYS + " days");
+            throw ApiException.badRequest("La période ne doit pas dépasser " + MAX_RANGE_DAYS + " jours");
         }
         return new Range(start, end);
     }
@@ -218,7 +218,7 @@ public class DashboardService {
     public List<BreakdownRow> getBreakdown(String dimension, int limit) {
         String column = dimension == null ? null : BREAKDOWN_COLUMNS.get(dimension.toLowerCase());
         if (column == null) {
-            throw ApiException.badRequest("dimension must be one of: type, city, source");
+            throw ApiException.badRequest("dimension doit être type, city ou source");
         }
         int max = Math.max(1, Math.min(limit, 100));
         // column comes from the whitelist above, never from user input

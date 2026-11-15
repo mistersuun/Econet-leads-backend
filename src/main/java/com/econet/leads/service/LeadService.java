@@ -249,7 +249,7 @@ public class LeadService {
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
         CallOutcome outcome = request.getOutcome();
         if (request.getSnoozeUntil() != null && !SNOOZABLE_OUTCOMES.contains(outcome)) {
-            throw ApiException.badRequest("snoozeUntil is only allowed with outcome NO_ANSWER, VOICEMAIL or CALLBACK");
+            throw ApiException.badRequest("snoozeUntil est permis seulement avec les résultats NO_ANSWER, VOICEMAIL ou CALLBACK");
         }
 
         LeadStatus newStatus = nextStatus(lead.getLeadStatus(), outcome);
@@ -320,13 +320,13 @@ public class LeadService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("Utilisateur introuvable : " + userId));
         if (!SNOOZABLE_STATUSES.contains(lead.getLeadStatus())) {
-            throw ApiException.badRequest("Cannot snooze a lead in status " + lead.getLeadStatus()
-                    + " (allowed: NEW, CONTACTED, INTERESTED, QUOTE_SENT)");
+            throw ApiException.badRequest("Impossible de reporter un lead au statut " + lead.getLeadStatus()
+                    + " (permis : NEW, CONTACTED, INTERESTED, QUOTE_SENT)");
         }
         LocalDateTime until = request.getUntil().truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
         if (!until.isAfter(now)) {
-            throw ApiException.badRequest("until must be in the future");
+            throw ApiException.badRequest("La date de report doit être dans le futur");
         }
 
         contactRepository.clearNextActionDates(lead.getId());

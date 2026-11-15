@@ -120,8 +120,9 @@ class ClientsApiIntegrationTest {
                 .andExpect(jsonPath("$[0].businessId").value(lead.getId().toString()))
                 .andExpect(jsonPath("$[0].businessName").value("CPE Soleil"))
                 .andExpect(jsonPath("$[0].frequency").value("bi-weekly"))
-                .andExpect(jsonPath("$[0].pricePerVisit").value(250.0))
-                .andExpect(jsonPath("$[0].monthlyValue").value(541.67))
+                // the estimated value (250 / year) is divided by the 26 bi-weekly visits
+                .andExpect(jsonPath("$[0].pricePerVisit").value(9.62))
+                .andExpect(jsonPath("$[0].monthlyValue").value(20.84))
                 .andExpect(jsonPath("$[0].status").value("active"))
                 .andExpect(jsonPath("$[0].startDate").value(today.toString()))
                 .andExpect(jsonPath("$[0].service").value("Entretien ménager"));
@@ -163,7 +164,8 @@ class ClientsApiIntegrationTest {
         Client active = client("Resto Un", "weekly", "100", "active", null, null, null);
         Client paused = client("Resto Deux", "monthly", "80", "paused", null, null, null);
 
-        mvc.perform(get("/api/clients").param("status", "paused").with(VIEWER))
+        mvc.perform(get("/api/clients").with(VIEWER)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/clients").param("status", "paused").with(ALICE))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].id").value(paused.getId().toString()));
@@ -171,7 +173,7 @@ class ClientsApiIntegrationTest {
         mvc.perform(get("/api/clients").param("businessId", active.getBusiness().getId().toString()).with(ALICE))
                 .andExpect(jsonPath("$", hasSize(1)));
         mvc.perform(get("/api/clients/{id}", UUID.randomUUID()).with(ALICE)).andExpect(status().isNotFound());
-        mvc.perform(get("/api/clients/{id}", active.getId()).with(VIEWER)).andExpect(status().isOk());
+        mvc.perform(get("/api/clients/{id}", active.getId()).with(VIEWER)).andExpect(status().isForbidden());
         mvc.perform(get("/api/clients")).andExpect(status().isUnauthorized());
 
         String body = "{\"pricePerVisit\":135.5,\"frequency\":\"bi-weekly\",\"contractEndDate\":\"" + today.plusDays(20)
@@ -284,7 +286,7 @@ class ClientsApiIntegrationTest {
                 .andExpect(jsonPath("$.monthlyRecurringRevenue").value(750.0))
                 .andExpect(jsonPath("$.renewalsNext30Days").value(1))
                 .andExpect(jsonPath("$.reviewsPending").value(2));
-        mvc.perform(get("/api/dashboard/clients").with(VIEWER)).andExpect(status().isOk());
+        mvc.perform(get("/api/dashboard/clients").with(VIEWER)).andExpect(status().isForbidden());
     }
 
     @Test

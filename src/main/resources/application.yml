@@ -2,6 +2,11 @@ spring:
   application:
     name: econet-leads-backend
 
+  task:
+    scheduling:
+      pool:
+        size: 3   # a long saved-search run must not block the SSE heartbeat, the website poller or the claim sweep
+
   datasource:
     driver-class-name: org.postgresql.Driver
     hikari:
@@ -48,7 +53,7 @@ server:
     # let Tomcat read (and reject with 413) oversized uploads instead of resetting the connection
     max-swallow-size: -1
   # Honor X-Forwarded-* from the Azure Container Apps ingress
-  forward-headers-strategy: framework
+  forward-headers-strategy: native
   servlet:
     context-path: /
   compression:
@@ -173,6 +178,8 @@ app:
 
   company:
     name: ${COMPANY_NAME:EcoNet Propreté}
+    # Contact line added to every follow-up text before the opt-out line (CASL), e.g. "514 555-0123 econet.ca"
+    contact: ${COMPANY_CONTACT:}
 
   reviews:
     # Google review link sent to clients after the first cleaning (clients page). Optional.

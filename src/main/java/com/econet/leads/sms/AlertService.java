@@ -73,6 +73,10 @@ public class AlertService {
 
     /** Synchronous body of the listener (public for tests). Never throws. */
     public void handle(InboundLeadEvent event) {
+        if (event.backlog()) {
+            log.debug("Lead {} is an old request imported late: no owner alert", event.leadId());
+            return;
+        }
         try {
             sendSms(event);
         } catch (RuntimeException e) {
@@ -98,7 +102,7 @@ public class AlertService {
         }
         String body = smsBody(event);
         for (String phone : phones) {
-            long today = messages.countByKindAndCreatedAtGreaterThanEqual(SmsMessage.ALERT, LocalDate.now(clock).atStartOfDay());
+            long today = messages.countByKindAndBusinessIdIsNotNullAndCreatedAtGreaterThanEqual(SmsMessage.ALERT, LocalDate.now(clock).atStartOfDay());
             if (today >= Math.max(1, alerts.getMaxSmsPerDay())) {
                 log.warn("Daily limit of {} alert SMS reached; skipping lead {}", alerts.getMaxSmsPerDay(), event.leadId());
                 return;
@@ -184,7 +188,7 @@ public class AlertService {
 
     // ------------------------------------------------------------------ test alert
 
-    /** Sends a clearly labelled test to every alert target (SMS counts as alerts for the daily limit). */
+    /** Sends a clearly labelled test to every alert target. Test rows have no lead, so they do not use up the daily alert budget. */
     public TestResult sendTest() {
         List<String> phones = alerts.phones();
         List<String> emails = alerts.emails();

@@ -292,7 +292,11 @@ public class BusinessService {
     /**
      * Result of an import upsert: the persisted business and whether it was newly created.
      */
-    public record UpsertResult(Business business, boolean created) {}
+    public record UpsertResult(Business business, boolean created, String candidateExternalId) {
+        public UpsertResult(Business business, boolean created) {
+            this(business, created, null);
+        }
+    }
 
     /**
      * Find-or-create a business coming from an import/scraper.
@@ -304,6 +308,7 @@ public class BusinessService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public UpsertResult importRecord(Business business) {
+        String candidateId = business.getExternalId();
         // Normalize candidate data BEFORE duplicate detection
         normalizeBusinessData(business);
 
@@ -313,7 +318,7 @@ public class BusinessService {
                     .findFirstByExternalIdAndDataSourceOrderByCreatedAtAsc(business.getExternalId(), business.getDataSource());
             if (existing.isPresent()) {
                 log.debug("Found existing business by external ID: {}", existing.get().getId());
-                return new UpsertResult(updateExisting(existing.get(), business), false);
+                return new UpsertResult(updateExisting(existing.get(), business), false, candidateId);
             }
         }
 
@@ -321,12 +326,12 @@ public class BusinessService {
         Optional<Business> duplicate = findDuplicate(business);
         if (duplicate.isPresent()) {
             log.debug("Found duplicate business: {}", duplicate.get().getId());
-            return new UpsertResult(updateExisting(duplicate.get(), business), false);
+            return new UpsertResult(updateExisting(duplicate.get(), business), false, candidateId);
         }
 
         // Create new business
         business.setDataQualityScore(dataQualityService.calculateQualityScore(business));
-        return new UpsertResult(businessRepository.save(business), true);
+        return new UpsertResult(businessRepository.save(business), true, candidateId);
     }
 
     /**

@@ -80,6 +80,7 @@ public class QuoteService {
     private final Clock clock;
     private final TransactionTemplate tx;
     private final String companyName;
+    private final ClientService clientService;
     private final Object numberLock = new Object();
 
     public QuoteService(QuoteRepository quoteRepository, BusinessRepository businessRepository,
@@ -88,7 +89,9 @@ public class QuoteService {
                         SseEventService events, PublicLinkService links, EmailRateLimiter rateLimiter,
                         MailSettings mailSettings, ObjectProvider<JavaMailSender> mailSender, Clock clock,
                         PlatformTransactionManager transactionManager,
+                        ClientService clientService,
                         @Value("${app.company.name:EcoNet Propreté}") String companyName) {
+        this.clientService = clientService;
         this.quoteRepository = quoteRepository;
         this.businessRepository = businessRepository;
         this.contactRepository = contactRepository;
@@ -252,8 +255,9 @@ public class QuoteService {
             helper.addAttachment(quote.getNumber() + ".pdf", new ByteArrayResource(pdf), "application/pdf");
             sender.send(message);
         } catch (MessagingException | UnsupportedEncodingException | MailException e) {
-            log.error("Quote email {} failed: {}", quote.getNumber(), e.getMessage());
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "Email could not be sent: " + e.getMessage());
+            // the exception text carries the SMTP reply with the recipient's address: log only its type
+            log.error("Quote email {} failed ({})", quote.getNumber(), e.getClass().getSimpleName());
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "Le courriel n'a pas pu être envoyé");
         }
 
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
@@ -355,8 +359,17 @@ public class QuoteService {
         quote.setStatus(Quote.ACCEPTED);
         quote.setAcceptedAt(now);
         quote.setAcceptedName(name);
-        quote.setAcceptedIpHash(PublicLinkService.sha256Hex(clientIp + "|" + quote.getId()));
+        quote.setAcceptedIpHash(links.hmacHex(clientIp + "|" + quote.getId()));
         quoteRepository.saveAndFlush(quote);
+
+        // the lead's other open quotes are superseded: their links must not be acceptable any more
+        for (Quote other : quoteRepository.findByBusinessId(quote.getBusiness().getId())) {
+            if (!other.getId().equals(quote.getId())
+                    && (Quote.SENT.equals(other.getStatus()) || Quote.DRAFT.equals(other.getStatus()))) {
+                other.setStatus(Quote.EXPIRED);
+                quoteRepository.save(other);
+            }
+        }
 
         Business lead = quote.getBusiness();
         Optional<User> actor = actingUser(quote, lead);
@@ -368,6 +381,7 @@ public class QuoteService {
         } else {
             log.warn("Quote {} accepted but no user available to record the WON status", quote.getNumber());
         }
+        clientService.refreshFromAcceptedQuote(lead.getId());
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("leadId", lead.getId());

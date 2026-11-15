@@ -26,9 +26,28 @@ public class PublicLinkService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final String configuredBase;
+    private final byte[] hmacKey;
 
-    public PublicLinkService(@Value("${app.public-url:}") String configuredBase) {
+    public PublicLinkService(@Value("${app.public-url:}") String configuredBase,
+                             @Value("${app.jwt.secret:}") String hashSecret) {
         this.configuredBase = configuredBase == null ? "" : configuredBase.trim();
+        if (hashSecret == null || hashSecret.isBlank()) {
+            this.hmacKey = new byte[32];
+            RANDOM.nextBytes(this.hmacKey);
+        } else {
+            this.hmacKey = ("public-link-hash|" + hashSecret).getBytes(StandardCharsets.UTF_8);
+        }
+    }
+
+    /** Keyed hash (HMAC-SHA-256) for values that must not be recoverable by brute force, such as an IP address. */
+    public String hmacHex(String value) {
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(hmacKey, "HmacSHA256"));
+            return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     /** 32 random bytes as base64url without padding (43 chars). */
