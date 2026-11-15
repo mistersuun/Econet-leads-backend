@@ -121,7 +121,7 @@ public class BookingService {
     @Transactional
     public BookingDTOs.LinkResponse createLink(UUID leadId, User caller) {
         Business lead = businessRepository.findById(leadId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + leadId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + leadId));
         BookingLink link = new BookingLink();
         link.setBusiness(lead);
         link.setCreatedBy(caller);
@@ -140,7 +140,7 @@ public class BookingService {
             throw ApiException.badRequest("'to' must not be before 'from'");
         }
         if (start.plusDays(366).isBefore(end)) {
-            throw ApiException.badRequest("The range must not exceed one year");
+            throw ApiException.badRequest("La plage ne doit pas dépasser un an");
         }
         return visitRepository.findBetween(start.atStartOfDay(), end.plusDays(1).atStartOfDay()).stream()
                 .map(BookingService::toDto).toList();
@@ -153,7 +153,7 @@ public class BookingService {
             throw ApiException.badRequest("status must be booked, done or cancelled");
         }
         Visit visit = visitRepository.findById(id)
-                .orElseThrow(() -> ApiException.notFound("Visit not found: " + id));
+                .orElseThrow(() -> ApiException.notFound("Visite introuvable : " + id));
         visit.setStatus(s);
         return toDto(visitRepository.saveAndFlush(visit));
     }
@@ -173,7 +173,7 @@ public class BookingService {
     @Transactional
     public List<BookingDTOs.Window> replaceAvailability(List<BookingDTOs.Window> windows) {
         if (windows == null) {
-            throw ApiException.badRequest("A list of windows is required");
+            throw ApiException.badRequest("Une liste de plages est requise");
         }
         if (windows.size() > 50) {
             throw ApiException.badRequest("At most 50 windows");
@@ -323,7 +323,7 @@ public class BookingService {
         Slot slot = freeSlots().stream().filter(s -> s.start().equals(wanted)).findFirst()
                 .orElseThrow(SlotUnavailableException::new);
         Business lead = businessRepository.findByIdForUpdate(link.getBusiness().getId())
-                .orElseThrow(() -> ApiException.notFound("Not found"));
+                .orElseThrow(() -> ApiException.notFound("Introuvable"));
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
 
         Visit visit = new Visit();
@@ -426,11 +426,11 @@ public class BookingService {
 
     private BookingLink findLink(String token, boolean forUpdate) {
         if (!PublicLinkService.looksLikeToken(token)) {
-            throw ApiException.notFound("Not found");
+            throw ApiException.notFound("Introuvable");
         }
         Optional<BookingLink> link = forUpdate ? linkRepository.findByTokenForUpdate(token) : linkRepository.findByToken(token);
         return link.filter(l -> PublicLinkService.secretsEqual(l.getToken(), token))
-                .orElseThrow(() -> ApiException.notFound("Not found"));
+                .orElseThrow(() -> ApiException.notFound("Introuvable"));
     }
 
     private LinkState state(BookingLink link) {

@@ -119,7 +119,7 @@ public class QuoteService {
 
     private QuoteDTOs.Quote doCreate(UUID leadId, QuoteDTOs.CreateRequest request, User caller) {
         Business lead = businessRepository.findById(leadId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + leadId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + leadId));
         EstimateInput input = request.estimate();
         Estimate estimate = pricingService.estimate(input);
         if (estimate.requiresQuote()) {
@@ -197,7 +197,7 @@ public class QuoteService {
     @Transactional(readOnly = true)
     public List<QuoteDTOs.Quote> listForLead(UUID leadId) {
         if (!businessRepository.existsById(leadId)) {
-            throw ApiException.notFound("Lead not found: " + leadId);
+            throw ApiException.notFound("Lead introuvable : " + leadId);
         }
         return quoteRepository.findByBusinessId(leadId).stream().map(this::toDto).toList();
     }
@@ -205,7 +205,7 @@ public class QuoteService {
     @Transactional(readOnly = true)
     public PdfFile pdf(UUID quoteId) {
         Quote quote = quoteRepository.findById(quoteId)
-                .orElseThrow(() -> ApiException.notFound("Quote not found: " + quoteId));
+                .orElseThrow(() -> ApiException.notFound("Soumission introuvable : " + quoteId));
         return new PdfFile(quote.getNumber() + ".pdf", pdfService.render(quote));
     }
 
@@ -220,9 +220,9 @@ public class QuoteService {
             throw ApiException.serviceUnavailable("Courriel non configuré (définir SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)");
         }
         Quote quote = quoteRepository.findById(quoteId)
-                .orElseThrow(() -> ApiException.notFound("Quote not found: " + quoteId));
+                .orElseThrow(() -> ApiException.notFound("Soumission introuvable : " + quoteId));
         Business lead = businessRepository.findByIdForUpdate(quote.getBusiness().getId())
-                .orElseThrow(() -> ApiException.notFound("Lead not found"));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable"));
         if (Quote.ACCEPTED.equals(quote.getStatus()) || Quote.DECLINED.equals(quote.getStatus())) {
             throw ApiException.conflict("Cette soumission est déjà " + (Quote.ACCEPTED.equals(quote.getStatus()) ? "acceptée" : "refusée"));
         }
@@ -232,7 +232,7 @@ public class QuoteService {
         String to = request != null && request.to() != null && !request.to().isBlank() ? request.to().trim()
                 : firstNonBlank(QualificationService.text(lead.getQualification(), "email"), lead.getEmail());
         if (to == null) {
-            throw ApiException.badRequest("No recipient: pass 'to' or set an email on the lead / its qualification");
+            throw ApiException.badRequest("Aucun destinataire : indiquez « to » ou un courriel pour ce lead");
         }
         if (!to.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+")) {
             throw ApiException.badRequest("'" + to + "' is not a valid email address");
@@ -318,11 +318,11 @@ public class QuoteService {
     @Transactional
     public Quote findPublic(String token) {
         if (!PublicLinkService.looksLikeToken(token)) {
-            throw ApiException.notFound("Not found");
+            throw ApiException.notFound("Introuvable");
         }
         Quote quote = quoteRepository.findByToken(token)
                 .filter(q -> PublicLinkService.secretsEqual(q.getToken(), token))
-                .orElseThrow(() -> ApiException.notFound("Not found"));
+                .orElseThrow(() -> ApiException.notFound("Introuvable"));
         expireIfNeeded(quote);
         return quote;
     }
@@ -330,11 +330,11 @@ public class QuoteService {
     @Transactional(readOnly = true)
     public byte[] publicPdf(String token) {
         if (!PublicLinkService.looksLikeToken(token)) {
-            throw ApiException.notFound("Not found");
+            throw ApiException.notFound("Introuvable");
         }
         Quote quote = quoteRepository.findByToken(token)
                 .filter(q -> PublicLinkService.secretsEqual(q.getToken(), token))
-                .orElseThrow(() -> ApiException.notFound("Not found"));
+                .orElseThrow(() -> ApiException.notFound("Introuvable"));
         return pdfService.render(quote);
     }
 
@@ -430,11 +430,11 @@ public class QuoteService {
 
     private Quote lockPublic(String token) {
         if (!PublicLinkService.looksLikeToken(token)) {
-            throw ApiException.notFound("Not found");
+            throw ApiException.notFound("Introuvable");
         }
         return quoteRepository.findByTokenForUpdate(token)
                 .filter(q -> PublicLinkService.secretsEqual(q.getToken(), token))
-                .orElseThrow(() -> ApiException.notFound("Not found"));
+                .orElseThrow(() -> ApiException.notFound("Introuvable"));
     }
 
     /** The user to attribute system-made history to: the quote's creator, else the lead's owner, else an admin. */

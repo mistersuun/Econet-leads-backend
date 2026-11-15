@@ -302,7 +302,7 @@ public class ClientService {
                     if (n != null && n.length() > 5000) throw ApiException.badRequest("notes must not exceed 5000 characters");
                     c.setNotes(n == null || n.isEmpty() ? null : n);
                 }
-                default -> throw ApiException.badRequest("Unknown field: " + e.getKey());
+                default -> throw ApiException.badRequest("Champ inconnu : " + e.getKey());
             }
         }
         return toDto(clientRepository.saveAndFlush(c));
@@ -442,7 +442,7 @@ public class ClientService {
     // ------------------------------------------------------------------ helpers
 
     private Client find(UUID id) {
-        return clientRepository.findWithBusiness(id).orElseThrow(() -> ApiException.notFound("Client not found: " + id));
+        return clientRepository.findWithBusiness(id).orElseThrow(() -> ApiException.notFound("Client introuvable : " + id));
     }
 
     private LocalDateTime now() {
