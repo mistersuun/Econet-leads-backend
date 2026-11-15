@@ -2,6 +2,7 @@ package com.econet.leads.quotes;
 
 import com.econet.leads.model.Availability;
 import com.econet.leads.model.BookingLink;
+import com.econet.leads.model.Client;
 import com.econet.leads.model.Business;
 import com.econet.leads.model.Contact;
 import com.econet.leads.model.EmailTemplate;
@@ -12,6 +13,7 @@ import com.econet.leads.realtime.SseEventService;
 import com.econet.leads.repository.AvailabilityRepository;
 import com.econet.leads.repository.BookingLinkRepository;
 import com.econet.leads.repository.BusinessRepository;
+import com.econet.leads.repository.ClientRepository;
 import com.econet.leads.repository.ContactRepository;
 import com.econet.leads.repository.EmailTemplateRepository;
 import com.econet.leads.repository.QuoteRepository;
@@ -95,6 +97,7 @@ class QuotesBookingApiIntegrationTest {
     @Autowired ContactRepository contactRepository;
     @Autowired UserRepository userRepository;
     @Autowired QuoteRepository quoteRepository;
+    @Autowired ClientRepository clientRepository;
     @Autowired VisitRepository visitRepository;
     @Autowired BookingLinkRepository linkRepository;
     @Autowired AvailabilityRepository availabilityRepository;
@@ -132,6 +135,7 @@ class QuotesBookingApiIntegrationTest {
         linkRepository.deleteAll();
         visitRepository.deleteAll();
         quoteRepository.deleteAll();
+        clientRepository.deleteAll();
         contactRepository.deleteAll();
         businessRepository.deleteAll();
     }
@@ -298,6 +302,12 @@ class QuotesBookingApiIntegrationTest {
         assertThat(q.getAcceptedAt()).isNotNull();
         assertThat(q.getAcceptedIpHash()).hasSize(64).doesNotContain("127.0.0.1");
         assertThat(businessRepository.findById(lead.getId()).orElseThrow().getLeadStatus()).isEqualTo(LeadStatus.WON);
+        // the won lead becomes a client, priced and scheduled from the accepted quote (P6 hook on the same status path)
+        List<Client> clients = clientRepository.search(null, lead.getId());
+        assertThat(clients).hasSize(1);
+        assertThat(clients.get(0).getFrequency()).isEqualTo("weekly");
+        assertThat(clients.get(0).getService()).isEqualTo("Entretien résidentiel");
+        assertThat(clients.get(0).getPricePerVisit()).isEqualByComparingTo(q.getSubtotal());
         long notes = contactRepository.findByBusinessIdOrderByContactDateDesc(lead.getId()).stream()
                 .filter(c -> c.getContactType() == Contact.ContactType.NOTE && c.getNotes().contains("Marie Tremblay")).count();
         assertThat(notes).isEqualTo(1);
@@ -317,6 +327,7 @@ class QuotesBookingApiIntegrationTest {
                 .andExpect(status().isSeeOther());
         assertThat(quoteRepository.findById(id).orElseThrow().getAcceptedName()).isEqualTo("Marie Tremblay");
         assertThat(sse.lastEventId()).isEqualTo(eventsAfter);
+        assertThat(clientRepository.search(null, lead.getId())).hasSize(1);
         assertThat(contactRepository.findByBusinessIdOrderByContactDateDesc(lead.getId()).stream()
                 .filter(c -> c.getContactType() == Contact.ContactType.NOTE).count()).isEqualTo(1);
 

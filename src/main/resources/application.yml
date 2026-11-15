@@ -167,6 +167,10 @@ app:
     api-key: ${GOOGLE_PLACES_API_KEY:}
     daily-limit: ${PLACES_DAILY_LIMIT:100}   # calls per day (Montreal time)
 
+  weekly-report:
+    # Monday coaching email (America/Montreal), sent only when SMTP is configured
+    cron: ${WEEKLY_REPORT_CRON:0 30 7 * * MON}
+
   company:
     name: ${COMPANY_NAME:EcoNet Propreté}
 

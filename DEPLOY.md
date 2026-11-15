@@ -88,6 +88,7 @@ All of these are optional. When one is missing, the matching feature shows "non 
 | GOOGLE_PLACES_API_KEY | Google ratings and reviews on a lead. | Google Cloud console → APIs & Services → enable **Places API (New)** → Credentials → API key (restrict it to that API). |
 | PLACES_DAILY_LIMIT | Maximum Google lookups per day (default 100). | A number you choose, to cap the cost. |
 | GOOGLE_REVIEW_URL | Link sent to clients to ask for a Google review. | Google Business Profile → **Ask for reviews** → copy the link. |
+| WEEKLY_REPORT_CRON | When the Monday coaching email goes out (Montréal time; needs the SMTP settings of step 3). | Do not set it for Monday 7:30 (`0 30 7 * * MON`); otherwise a Spring cron with seconds, e.g. `0 0 8 * * MON`. |
 | OVERPASS_URL | A preferred OpenStreetMap server for map discovery, tried first. | Leave empty to use the built-in list of public servers (the server falls back to the next one on error and remembers the one that works for an hour). |
 
 Passwords: each user can change their own password in **Réglages → Mon compte**; an administrator can reset someone else's in **Réglages → Équipe**. Sessions already open stay valid until they expire (the login lasts 24 hours); to force everyone out, replace JWT_REFRESH_SECRET and JWT_SECRET as in step 8.

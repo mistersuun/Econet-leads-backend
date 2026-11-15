@@ -10,19 +10,17 @@ import com.econet.leads.exception.ApiException;
 import com.econet.leads.model.Business;
 import com.econet.leads.model.Client;
 import com.econet.leads.model.Contact;
+import com.econet.leads.model.Quote;
 import com.econet.leads.model.User;
 import com.econet.leads.repository.ClientRepository;
 import com.econet.leads.repository.ContactRepository;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.econet.leads.repository.QuoteRepository;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.ConnectionCallback;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -33,7 +31,6 @@ import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
-import java.sql.ResultSet;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -45,6 +42,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -65,8 +63,7 @@ public class ClientService {
 
     private final ClientRepository clientRepository;
     private final ContactRepository contactRepository;
-    private final JdbcTemplate jdbc;
-    private final ObjectMapper objectMapper;
+    private final QuoteRepository quoteRepository;
     private final ObjectProvider<JavaMailSender> mailSender;
     private final MailSettings mailSettings;
     private final EmailRateLimiter rateLimiter;
@@ -76,8 +73,7 @@ public class ClientService {
 
     public ClientService(ClientRepository clientRepository,
                          ContactRepository contactRepository,
-                         JdbcTemplate jdbc,
-                         ObjectMapper objectMapper,
+                         QuoteRepository quoteRepository,
                          ObjectProvider<JavaMailSender> mailSender,
                          MailSettings mailSettings,
                          EmailRateLimiter rateLimiter,
@@ -86,8 +82,7 @@ public class ClientService {
                          @Value("${app.company.name:EcoNet Propreté}") String companyName) {
         this.clientRepository = clientRepository;
         this.contactRepository = contactRepository;
-        this.jdbc = jdbc;
-        this.objectMapper = objectMapper;
+        this.quoteRepository = quoteRepository;
         this.mailSender = mailSender;
         this.mailSettings = mailSettings;
         this.rateLimiter = rateLimiter;
@@ -132,56 +127,31 @@ public class ClientService {
         return c;
     }
 
-    /** Takes service, frequency and price per visit from the latest accepted quote, when the quotes table exists. */
+    /** Takes service, frequency and price per visit from the latest accepted quote of the lead (V15), if any. */
     private void applyAcceptedQuote(UUID businessId, Client c) {
-        if (!quotesTableExists()) {
-            return;
-        }
         try {
-            List<Map<String, Object>> rows = jdbc.queryForList(
-                    "SELECT input, subtotal FROM quotes WHERE business_id = ? AND status = 'accepted' "
-                            + "ORDER BY accepted_at DESC LIMIT 1", businessId);
-            if (rows.isEmpty()) {
+            Optional<Quote> accepted = quoteRepository
+                    .findFirstByBusinessIdAndStatusOrderByAcceptedAtDesc(businessId, Quote.ACCEPTED);
+            if (accepted.isEmpty()) {
                 return;
             }
-            Object subtotal = rows.get(0).get("subtotal");
-            if (subtotal instanceof Number n) {
-                c.setPricePerVisit(new BigDecimal(n.toString()).setScale(2, RoundingMode.HALF_UP));
+            Quote quote = accepted.get();
+            if (quote.getSubtotal() != null) {
+                c.setPricePerVisit(quote.getSubtotal().setScale(2, RoundingMode.HALF_UP));
             }
-            Object input = rows.get(0).get("input");
+            Map<String, Object> input = quote.getInput();
             if (input != null) {
-                JsonNode json = objectMapper.readTree(input.toString());
-                if (json.isTextual()) { // a JSON column that stored the document as a string
-                    json = objectMapper.readTree(json.asText());
+                Object service = input.get("service");
+                if (service instanceof String s && !s.isBlank()) {
+                    c.setService(PricingService.SERVICE_LABELS_FR.getOrDefault(s, s));
                 }
-                String service = json.path("service").asText(null);
-                if (service != null && !service.isBlank()) {
-                    c.setService(PricingService.SERVICE_LABELS_FR.getOrDefault(service, service));
-                }
-                String frequency = json.path("frequency").asText(null);
-                if (frequency != null && Client.FREQUENCIES.contains(frequency)) {
-                    c.setFrequency(frequency);
+                Object frequency = input.get("frequency");
+                if (frequency instanceof String f && Client.FREQUENCIES.contains(f)) {
+                    c.setFrequency(f);
                 }
             }
-        } catch (Exception e) {
-            log.warn("Accepted quote of lead {} could not be read: {}", businessId, e.getMessage());
-        }
-    }
-
-    private boolean quotesTableExists() {
-        try {
-            return Boolean.TRUE.equals(jdbc.execute((ConnectionCallback<Boolean>) con -> {
-                for (String name : new String[]{"quotes", "QUOTES"}) {
-                    try (ResultSet rs = con.getMetaData().getTables(null, null, name, new String[]{"TABLE"})) {
-                        if (rs.next()) {
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            }));
         } catch (RuntimeException e) {
-            return false;
+            log.warn("Accepted quote of lead {} could not be read: {}", businessId, e.getMessage());
         }
     }
 

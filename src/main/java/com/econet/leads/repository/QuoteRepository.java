@@ -36,4 +36,7 @@ public interface QuoteRepository extends JpaRepository<Quote, UUID> {
     /** Latest quote of the lead that can still be accepted (draft or sent), for the {{quoteLink}} placeholder. */
     @Query("SELECT q FROM Quote q WHERE q.business.id = :businessId AND q.status IN ('draft', 'sent') AND q.validUntil >= :today ORDER BY q.createdAt DESC LIMIT 1")
     Optional<Quote> findOpenForLead(@Param("businessId") UUID businessId, @Param("today") java.time.LocalDate today);
+
+    /** Latest accepted quote of a lead: the source of the client's service, frequency and price (P6). */
+    Optional<Quote> findFirstByBusinessIdAndStatusOrderByAcceptedAtDesc(UUID businessId, String status);
 }

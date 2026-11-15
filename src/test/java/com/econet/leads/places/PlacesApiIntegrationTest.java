@@ -148,6 +148,7 @@ class PlacesApiIntegrationTest {
     @Autowired PlacesService placesService;
     @Autowired SavedSearchService savedSearchService;
     @Autowired NotificationService notificationService;
+    @Autowired java.time.Clock clock;
 
     static final RequestPostProcessor ALICE = user("alice").roles("USER");
     static final RequestPostProcessor ADMIN = user("boss").roles("ADMIN");
@@ -255,7 +256,12 @@ class PlacesApiIntegrationTest {
     @Test
     void dailyLimitIs429ForSingleAndBulk() throws Exception {
         Business b = lead("Bistro Le Comptoir", "Montréal", "5145550161");
-        usageRepository.save(new PlacesUsage(LocalDate.now(), 6));
+        usageRepository.save(new PlacesUsage(LocalDate.now(clock), 6));
+        // the integrations status (Réglages > Intégrations) reports the same counter
+        mvc.perform(get("/api/integrations/status").with(ALICE)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.places").value(true))
+                .andExpect(jsonPath("$.placesUsedToday").value(6))
+                .andExpect(jsonPath("$.placesDailyLimit").value(6));
         mvc.perform(post("/api/businesses/" + b.getId() + "/enrich/places").with(ALICE))
                 .andExpect(status().isTooManyRequests()).andExpect(jsonPath("$.error", containsString("PLACES_DAILY_LIMIT")));
         mvc.perform(post("/api/businesses/enrich/places").with(ALICE).contentType(MediaType.APPLICATION_JSON)

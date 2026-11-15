@@ -93,6 +93,7 @@ class CallFloorApiIntegrationTest {
     @Autowired SseEventService sseEventService;
     @Autowired CacheManager cacheManager;
     @MockitoBean JavaMailSender mailSender;
+    @Autowired java.time.Clock clock;
 
     User alice;
     User bob;
@@ -120,7 +121,7 @@ class CallFloorApiIntegrationTest {
         carol = ensureUser("carol", User.UserRole.USER);
         ensureUser("viewer", User.UserRole.VIEWER);
         now = LocalDateTime.now();
-        today = now.toLocalDate();
+        today = LocalDate.now(clock); // the server's business day (America/Montreal), not the JVM zone's
         given(mailSender.createMimeMessage()).willAnswer(inv -> new MimeMessage(Session.getInstance(new Properties())));
     }
 
@@ -597,7 +598,9 @@ class CallFloorApiIntegrationTest {
 
     @Test
     void funnelBestHoursAndScoreboardOnATinyFixture() throws Exception {
-        LocalDate monday = today.with(TemporalAdjusters.previous(DayOfWeek.MONDAY));
+        // The funnel week is the one two weeks before the current week: it never contains today nor the
+        // three streak days below (which all fall in the current or the previous week), whatever the weekday.
+        LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(2);
         Business a = lead("Lead A", "Montréal", "5145550040", 50, LeadStatus.WON, alice, null);
         Business b = lead("Lead B", "Montréal", "5145550041", 50, LeadStatus.CONTACTED, alice, null);
         call(a, alice, CallOutcome.NO_ANSWER, monday.atTime(10, 15), 20);
@@ -643,9 +646,10 @@ class CallFloorApiIntegrationTest {
         LocalDate d2 = previousBusinessDayOrSame(d1.minusDays(1));
         call(b, alice, CallOutcome.NO_ANSWER, d1.atTime(9, 0), 10);
         call(b, alice, CallOutcome.NO_ANSWER, d2.atTime(9, 0), 10);
-        // the Monday of the funnel fixture may extend the streak (e.g. on a Thursday: Mon-Thu = 4)
+        // the funnel week is too old to touch the streak: exactly d2, d1, d0
         int expectedStreak = DashboardService.streakDays(java.util.Set.of(d0, d1, d2, monday), today);
-        assertThat(expectedStreak).isGreaterThanOrEqualTo(3);
+        assertThat(expectedStreak).isEqualTo(3);
+        assertThat(monday.plusDays(6)).isBefore(d2);
 
         mvc.perform(get("/api/dashboard/me/today").with(ALICE))
                 .andExpect(status().isOk())

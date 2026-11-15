@@ -5,10 +5,12 @@ import com.econet.leads.model.Business;
 import com.econet.leads.model.Client;
 import com.econet.leads.model.Contact;
 import com.econet.leads.model.LeadStatus;
+import com.econet.leads.model.Quote;
 import com.econet.leads.model.User;
 import com.econet.leads.repository.BusinessRepository;
 import com.econet.leads.repository.ClientRepository;
 import com.econet.leads.repository.ContactRepository;
+import com.econet.leads.repository.QuoteRepository;
 import com.econet.leads.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.Session;
@@ -20,7 +22,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -62,10 +63,10 @@ class ClientsApiIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired BusinessRepository businessRepository;
     @Autowired ClientRepository clientRepository;
+    @Autowired QuoteRepository quoteRepository;
     @Autowired ContactRepository contactRepository;
     @Autowired UserRepository userRepository;
     @Autowired PasswordEncoder passwordEncoder;
-    @Autowired JdbcTemplate jdbc;
     @MockitoBean JavaMailSender mailSender;
 
     User alice;
@@ -89,7 +90,7 @@ class ClientsApiIntegrationTest {
 
     @AfterEach
     void cleanup() {
-        jdbc.execute("DROP TABLE IF EXISTS quotes");
+        quoteRepository.deleteAll();
         clientRepository.deleteAll();
         contactRepository.deleteAll();
         businessRepository.deleteAll();
@@ -140,14 +141,10 @@ class ClientsApiIntegrationTest {
     }
 
     @Test
-    void acceptedQuoteProvidesServiceFrequencyAndPriceWhenTheQuotesTableExists() throws Exception {
-        jdbc.execute("CREATE TABLE quotes (id UUID PRIMARY KEY, business_id UUID NOT NULL, status VARCHAR(20), "
-                + "input VARCHAR(2000), subtotal NUMERIC(10,2), accepted_at TIMESTAMP)");
+    void acceptedQuoteProvidesServiceFrequencyAndPrice() throws Exception {
         Business lead = lead("Bureau Alpha", LeadStatus.QUOTE_SENT, Map.of("frequencyWanted", "monthly"), "999.00", null);
-        jdbc.update("INSERT INTO quotes VALUES (?, ?, 'declined', ?, 50, NULL)", UUID.randomUUID(), lead.getId(),
-                "{\"service\":\"deep_cleaning\",\"frequency\":\"one-time\"}");
-        jdbc.update("INSERT INTO quotes VALUES (?, ?, 'accepted', ?, 312.50, ?)", UUID.randomUUID(), lead.getId(),
-                "{\"service\":\"commercial\",\"frequency\":\"weekly\"}", LocalDateTime.now());
+        quote(lead, "Q-2026-9001", Quote.DECLINED, "deep_cleaning", "one-time", "50.00", null);
+        quote(lead, "Q-2026-9002", Quote.ACCEPTED, "commercial", "weekly", "312.50", LocalDateTime.now());
 
         mvc.perform(patch("/api/businesses/{id}/status", lead.getId()).with(ALICE)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"WON\"}"))
@@ -360,5 +357,23 @@ class ClientsApiIntegrationTest {
         c.setStatus(status);
         c.setFirstCleaningDoneAt(firstCleaning);
         return clientRepository.save(c);
+    }
+
+    void quote(Business lead, String number, String status, String service, String frequency, String subtotal,
+               LocalDateTime acceptedAt) {
+        Quote q = new Quote();
+        q.setBusiness(lead);
+        q.setNumber(number);
+        q.setLanguage("fr");
+        q.setInput(Map.of("service", service, "frequency", frequency));
+        q.setLines(List.of());
+        q.setSubtotal(new BigDecimal(subtotal));
+        q.setTax(BigDecimal.ZERO);
+        q.setTotal(new BigDecimal(subtotal));
+        q.setStatus(status);
+        q.setToken(UUID.randomUUID().toString());
+        q.setValidUntil(LocalDate.now().plusDays(30));
+        q.setAcceptedAt(acceptedAt);
+        quoteRepository.save(q);
     }
 }

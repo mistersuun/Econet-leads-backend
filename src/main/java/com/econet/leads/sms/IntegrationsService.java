@@ -2,6 +2,7 @@ package com.econet.leads.sms;
 
 import com.econet.leads.config.MailSettings;
 import com.econet.leads.integration.website.WebsiteDb;
+import com.econet.leads.service.PlacesUsageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,6 +31,7 @@ public class IntegrationsService {
     private final WebsiteDb websiteDb;
     private final JdbcTemplate jdbc;
     private final Clock clock;
+    private final ObjectProvider<PlacesUsageService> placesUsage;
     private final String placesKey;
     private final int placesLimit;
     private final String reviewUrl;
@@ -38,6 +40,7 @@ public class IntegrationsService {
 
     public IntegrationsService(MailSettings mail, ObjectProvider<JavaMailSender> mailSender, SmsSettings sms,
                                AlertSettings alerts, WebsiteDb websiteDb, JdbcTemplate jdbc, Clock clock,
+                               ObjectProvider<PlacesUsageService> placesUsage,
                                @Value("${app.places.api-key:}") String placesKey,
                                @Value("${app.places.daily-limit:100}") int placesLimit,
                                @Value("${app.reviews.google-url:}") String reviewUrl,
@@ -50,6 +53,7 @@ public class IntegrationsService {
         this.websiteDb = websiteDb;
         this.jdbc = jdbc;
         this.clock = clock;
+        this.placesUsage = placesUsage;
         this.placesKey = placesKey;
         this.placesLimit = placesLimit;
         this.reviewUrl = reviewUrl;
@@ -74,8 +78,18 @@ public class IntegrationsService {
     }
 
     private int placesUsedToday() {
+        PlacesUsageService usage = placesUsage.getIfAvailable();
+        if (usage != null) {
+            try {
+                return usage.usedToday(); // same counter (and Montreal day) as the 429 check
+            } catch (RuntimeException e) {
+                log.debug("Places usage unreadable: {}", e.getMessage());
+                return 0;
+            }
+        }
         try {
-            Integer calls = jdbc.query("SELECT calls FROM places_usage WHERE day = ?",
+            // "day" quoted: DAY is a reserved word in H2
+            Integer calls = jdbc.query("SELECT calls FROM places_usage WHERE \"day\" = ?",
                     rs -> rs.next() ? rs.getInt(1) : 0, java.sql.Date.valueOf(LocalDate.now(clock)));
             return calls == null ? 0 : calls;
         } catch (RuntimeException e) {

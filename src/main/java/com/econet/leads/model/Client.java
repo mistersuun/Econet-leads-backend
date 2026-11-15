@@ -6,6 +6,8 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
@@ -29,6 +31,7 @@ public class Client {
     private UUID id;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @OnDelete(action = OnDeleteAction.CASCADE) // V16: ON DELETE CASCADE
     @JoinColumn(name = "business_id", nullable = false, unique = true)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
