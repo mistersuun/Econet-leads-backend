@@ -50,9 +50,9 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         // 401 (not Spring's default 403) when the token is missing/invalid, so clients can refresh
                         .authenticationEntryPoint((request, response, e) ->
-                                writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
+                                writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "Non autorisé"))
                         .accessDeniedHandler((request, response, e) ->
-                                writeError(response, HttpServletResponse.SC_FORBIDDEN, "Access denied"))
+                                writeError(response, HttpServletResponse.SC_FORBIDDEN, "Accès refusé"))
                 )
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
@@ -60,6 +60,8 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // Public quote and booking pages (secret token in the URL; see PublicPagesFilter)
+                        .requestMatchers("/public/**").permitAll()
 
                         // Account creation is restricted to administrators
                         .requestMatchers("/api/auth/register").hasRole("ADMIN")
@@ -69,6 +71,9 @@ public class SecurityConfig {
 
                         // Releasing one's own claim is a caller action, not an admin delete
                         .requestMatchers(HttpMethod.DELETE, "/api/leads/*/claim").hasAnyRole("ADMIN", "USER")
+
+                        // Changing one's own password is open to every authenticated role (including VIEWER)
+                        .requestMatchers(HttpMethod.POST, "/api/me/password").authenticated()
 
                         // A caller who started a file import follows its job (list or by id) (the rest of the job API stays admin-only)
                         .requestMatchers(new RegexRequestMatcher("/api/scraper-jobs/[0-9a-fA-F-]{36}", "GET")).hasAnyRole("ADMIN", "USER")
@@ -84,6 +89,8 @@ public class SecurityConfig {
                         // Adding leads: duplicate hints, file imports and map discovery are caller tools, not read-only data
                         .requestMatchers(HttpMethod.GET, "/api/businesses/duplicates").hasAnyRole("ADMIN", "USER")
                         .requestMatchers("/api/imports/**", "/api/discover/**").hasAnyRole("ADMIN", "USER")
+                        // Saved searches and clients (contract prices, contacts, MRR): USER/ADMIN for reads too
+                        .requestMatchers("/api/saved-searches/**", "/api/clients/**", "/api/dashboard/clients").hasAnyRole("ADMIN", "USER")
 
                         // Every role (including VIEWER) can read: leads, queue, dashboard, contacts, /api/auth/me
                         .requestMatchers(HttpMethod.GET, "/api/**").authenticated()

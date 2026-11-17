@@ -81,6 +81,13 @@ public class LeadService {
     private final QualificationService qualificationService;
     private final DashboardService dashboardService;
 
+    /**
+     * Creates the client record when a lead is won (see ClientService#onLeadWon). Field-injected so
+     * the constructor stays unchanged; optional (null) in unit tests that build the service by hand.
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ClientService clientService;
+
     // ------------------------------------------------------------------ queue
 
     /** Optional "session mode" filters of GET /api/leads/queue. */
@@ -167,6 +174,14 @@ public class LeadService {
      * in the database (a CASE over the business types with history, the smoothing prior otherwise).
      */
     static Expression<Double> priorityExpression(Root<Business> root, CriteriaBuilder cb, Map<String, Double> rates) {
+        // +10 for leads with Google cleanliness review quotes (same bonus as PriorityScoreService.CLEANLINESS_BONUS)
+        Expression<Double> cleanliness = cb.<Double>selectCase()
+                .when(cb.isTrue(root.<Boolean>get("placesCleanliness")), PriorityScoreService.CLEANLINESS_BONUS)
+                .otherwise(0.0);
+        return cb.sum(basePriority(root, cb, rates), cleanliness);
+    }
+
+    private static Expression<Double> basePriority(Root<Business> root, CriteriaBuilder cb, Map<String, Double> rates) {
         Expression<Double> quality = cb.prod(cb.toDouble(cb.coalesce(root.<Integer>get("dataQualityScore"), 0)), 0.5);
         if (rates.isEmpty()) {
             return cb.sum(quality, cb.literal(50.0 * PriorityScoreService.DEFAULT_RATE));
@@ -210,7 +225,7 @@ public class LeadService {
 
     public ClaimDTO claim(UUID businessId, User user) {
         Business lead = businessRepository.findById(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         ClaimRegistry.Claim claim = claimRegistry.claim(lead.getId(), lead.getBusinessName(), user.getId(), user.getUsername());
         presenceService.touch(user.getId());
         return ClaimDTO.from(claim);
@@ -227,14 +242,14 @@ public class LeadService {
     @Transactional
     public LogCallResponse logCall(UUID businessId, LogCallRequest request, UUID callerId) {
         Business lead = businessRepository.findByIdForUpdate(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         User caller = userRepository.findById(callerId)
-                .orElseThrow(() -> ApiException.notFound("User not found: " + callerId));
+                .orElseThrow(() -> ApiException.notFound("Utilisateur introuvable : " + callerId));
 
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
         CallOutcome outcome = request.getOutcome();
         if (request.getSnoozeUntil() != null && !SNOOZABLE_OUTCOMES.contains(outcome)) {
-            throw ApiException.badRequest("snoozeUntil is only allowed with outcome NO_ANSWER, VOICEMAIL or CALLBACK");
+            throw ApiException.badRequest("snoozeUntil est permis seulement avec les résultats NO_ANSWER, VOICEMAIL ou CALLBACK");
         }
 
         LeadStatus newStatus = nextStatus(lead.getLeadStatus(), outcome);
@@ -260,6 +275,7 @@ public class LeadService {
         contact.setContactPerson(trimToNull(request.getContactPerson()));
         contact.setNotes(trimToNull(request.getNotes()));
         contact.setDurationSeconds(request.getDurationSeconds());
+        contact.setObjections(cleanObjections(request.getObjections()));
         contact.setNextActionDate(followUp);
         contact.setNextAction(followUp != null ? "Rappel" : null);
         contact = contactRepository.saveAndFlush(contact); // flush so createdAt is populated in the response
@@ -278,6 +294,7 @@ public class LeadService {
             lead.setQualification(qualificationService.merge(lead.getQualification(), request.getQualification()));
         }
         lead = businessRepository.saveAndFlush(lead); // flush so updatedAt is current in the response
+        onWon(lead, newStatus);
 
         claimRegistry.release(lead.getId(), null);
         presenceService.touch(callerId);
@@ -299,17 +316,17 @@ public class LeadService {
     @Transactional
     public BusinessDTO snooze(UUID businessId, SnoozeRequest request, UUID userId) {
         Business lead = businessRepository.findByIdForUpdate(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> ApiException.notFound("User not found: " + userId));
+                .orElseThrow(() -> ApiException.notFound("Utilisateur introuvable : " + userId));
         if (!SNOOZABLE_STATUSES.contains(lead.getLeadStatus())) {
-            throw ApiException.badRequest("Cannot snooze a lead in status " + lead.getLeadStatus()
-                    + " (allowed: NEW, CONTACTED, INTERESTED, QUOTE_SENT)");
+            throw ApiException.badRequest("Impossible de reporter un lead au statut " + lead.getLeadStatus()
+                    + " (permis : NEW, CONTACTED, INTERESTED, QUOTE_SENT)");
         }
         LocalDateTime until = request.getUntil().truncatedTo(ChronoUnit.MINUTES);
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
         if (!until.isAfter(now)) {
-            throw ApiException.badRequest("until must be in the future");
+            throw ApiException.badRequest("La date de report doit être dans le futur");
         }
 
         contactRepository.clearNextActionDates(lead.getId());
@@ -346,9 +363,9 @@ public class LeadService {
     @Transactional
     public BusinessDTO updateStatus(UUID businessId, LeadStatusUpdateRequest request, UUID userId) {
         Business lead = businessRepository.findByIdForUpdate(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> ApiException.notFound("User not found: " + userId));
+                .orElseThrow(() -> ApiException.notFound("Utilisateur introuvable : " + userId));
 
         LeadStatus previous = lead.getLeadStatus();
         LeadStatus next = request.getStatus();
@@ -364,6 +381,7 @@ public class LeadService {
             contactRepository.clearNextActionDates(lead.getId());
         }
         lead = businessRepository.saveAndFlush(lead);
+        onWon(lead, next);
 
         Contact history = new Contact();
         history.setBusiness(lead);
@@ -385,12 +403,19 @@ public class LeadService {
         return decorate(DtoMapper.toDto(lead));
     }
 
+    /** Hook for every path that moves a lead to WON (calls, status change, accepted quote). */
+    private void onWon(Business lead, LeadStatus status) {
+        if (status == LeadStatus.WON && clientService != null) {
+            clientService.onLeadWon(lead);
+        }
+    }
+
     // ------------------------------------------------------------------ qualification
 
     @Transactional(readOnly = true)
     public Map<String, Object> getQualification(UUID businessId) {
         Business lead = businessRepository.findById(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         return lead.getQualification() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(lead.getQualification());
     }
 
@@ -398,7 +423,7 @@ public class LeadService {
     @Transactional
     public Map<String, Object> patchQualification(UUID businessId, Map<String, Object> patch, UUID userId) {
         Business lead = businessRepository.findByIdForUpdate(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         lead.setQualification(qualificationService.merge(lead.getQualification(), patch));
         lead = businessRepository.saveAndFlush(lead);
         presenceService.touch(userId);
@@ -420,9 +445,9 @@ public class LeadService {
             throw ApiException.badRequest("Numéro de téléphone invalide: 10 chiffres attendus (ex. 514 555-0123), +1 optionnel");
         }
         Business lead = businessRepository.findByIdForUpdate(businessId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + businessId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + businessId));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> ApiException.notFound("User not found: " + userId));
+                .orElseThrow(() -> ApiException.notFound("Utilisateur introuvable : " + userId));
 
         String previous = lead.getPhone();
         lead.setPhone(PhoneFormatter.format(phone));
@@ -593,6 +618,19 @@ public class LeadService {
             case DO_NOT_CALL -> Contact.ContactOutcome.DO_NOT_CALL;
             case NEW, CONTACTED -> null;
         };
+    }
+
+    /** Trims, drops blanks and duplicates (case-insensitive); null when nothing is left. */
+    static List<String> cleanObjections(List<String> raw) {
+        if (raw == null) return null;
+        List<String> result = new ArrayList<>();
+        for (String s : raw) {
+            String t = trimToNull(s);
+            if (t != null && result.stream().noneMatch(t::equalsIgnoreCase)) {
+                result.add(t);
+            }
+        }
+        return result.isEmpty() ? null : result;
     }
 
     private static String trimToNull(String s) {

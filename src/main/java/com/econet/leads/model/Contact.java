@@ -5,9 +5,12 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -58,6 +61,11 @@ public class Contact {
     /** Duration of the call in seconds (APPEL contacts), when the caller timed it (V9). */
     @Column(name = "duration_seconds")
     private Integer durationSeconds;
+
+    /** Objections heard during the call (V14), at most 5 short strings; null when none. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private List<String> objections;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

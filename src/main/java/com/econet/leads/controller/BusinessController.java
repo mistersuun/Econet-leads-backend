@@ -139,7 +139,7 @@ public class BusinessController {
     public ResponseEntity<BusinessDTO> getBusinessById(@PathVariable UUID id) {
         return businessService.findDtoById(id)
                 .map(ResponseEntity::ok)
-                .orElseThrow(() -> ApiException.notFound("Business not found with id: " + id));
+                .orElseThrow(() -> ApiException.notFound("Entreprise introuvable : " + id));
     }
 
     @PatchMapping("/{id}/status")
@@ -214,7 +214,7 @@ public class BusinessController {
         // Fetch category if provided
         if (request.getCategoryId() != null) {
             BusinessCategory category = businessCategoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> ApiException.badRequest("Category not found with id: " + request.getCategoryId()));
+                .orElseThrow(() -> ApiException.badRequest("Catégorie introuvable : " + request.getCategoryId()));
             business.setCategory(category);
         }
 
@@ -230,7 +230,7 @@ public class BusinessController {
         business.setEstimatedValue(request.getEstimatedValue());
         if (request.getAssignedToId() != null) {
             business.setAssignedTo(userRepository.findById(request.getAssignedToId())
-                    .orElseThrow(() -> ApiException.badRequest("User not found: " + request.getAssignedToId())));
+                    .orElseThrow(() -> ApiException.badRequest("Utilisateur introuvable : " + request.getAssignedToId())));
         }
 
         Business updated = businessService.update(id, business);
@@ -271,7 +271,7 @@ public class BusinessController {
                 try {
                     filters.setAssignedToUserId(UUID.fromString(assignedTo.trim()));
                 } catch (IllegalArgumentException e) {
-                    throw ApiException.badRequest("assignedTo must be a user id or 'me'");
+                    throw ApiException.badRequest("assignedTo doit être un identifiant d'utilisateur ou « me »");
                 }
             }
         }
@@ -280,7 +280,7 @@ public class BusinessController {
 
     static Sort buildSort(String sortBy, String sortDirection) {
         if (!SORTABLE_FIELDS.contains(sortBy)) {
-            throw ApiException.badRequest("sortBy must be one of " + new TreeSet<>(SORTABLE_FIELDS));
+            throw ApiException.badRequest("sortBy doit être l'un de " + new TreeSet<>(SORTABLE_FIELDS));
         }
         Sort.Direction direction;
         if ("ASC".equalsIgnoreCase(sortDirection)) {
@@ -288,7 +288,7 @@ public class BusinessController {
         } else if ("DESC".equalsIgnoreCase(sortDirection)) {
             direction = Sort.Direction.DESC;
         } else {
-            throw ApiException.badRequest("sortDirection must be ASC or DESC");
+            throw ApiException.badRequest("sortDirection doit être ASC ou DESC");
         }
         // id as tie-breaker keeps pagination stable
         return Sort.by(direction, sortBy).and(Sort.by(Sort.Direction.ASC, "id"));

@@ -6,6 +6,6 @@ package com.econet.leads.integration;
 public class ImportAlreadyRunningException extends RuntimeException {
 
     public ImportAlreadyRunningException(String sourceName) {
-        super("An import is already running for data source: " + sourceName);
+        super("Une importation est déjà en cours pour la source : " + sourceName + ". Réessayez dans un instant.");
     }
 }

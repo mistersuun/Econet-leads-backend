@@ -2,6 +2,11 @@ spring:
   application:
     name: econet-leads-backend
 
+  task:
+    scheduling:
+      pool:
+        size: 3   # a long saved-search run must not block the SSE heartbeat, the website poller or the claim sweep
+
   datasource:
     driver-class-name: org.postgresql.Driver
     hikari:
@@ -48,7 +53,7 @@ server:
     # let Tomcat read (and reject with 413) oversized uploads instead of resetting the connection
     max-swallow-size: -1
   # Honor X-Forwarded-* from the Azure Container Apps ingress
-  forward-headers-strategy: framework
+  forward-headers-strategy: native
   servlet:
     context-path: /
   compression:
@@ -134,13 +139,51 @@ app:
 
   discover:
     # OpenStreetMap discovery (POST /api/discover/osm); ODbL: the UI must show the attribution
-    overpass-url: ${OVERPASS_URL:https://overpass-api.de/api/interpreter}
+    # OVERPASS_URL (optional) is tried first, then the mirrors below in order; the last one that answered is
+    # tried first for an hour. A failing endpoint (connect error, timeout, 429, 5xx) falls through to the next.
+    overpass-url: ${OVERPASS_URL:}
+    overpass-urls: https://overpass.kumi.systems/api/interpreter,https://overpass-api.de/api/interpreter,https://overpass.private.coffee/api/interpreter,https://maps.mail.ru/osm/tools/overpass/api/interpreter
+    remember-minutes: 60
     nominatim-url: ${NOMINATIM_URL:https://nominatim.openstreetmap.org}
     timeout-seconds: 25
     min-interval-ms: 1000   # 1 request/second towards each public endpoint
 
+  # Public base URL of this API (links in emails/pages) and of the CRM (links in alerts). Blank public-url =
+  # derived from the request, falling back to http://localhost:8080.
+  public-url: ${APP_PUBLIC_URL:}
+  crm-url: ${CRM_URL:http://localhost:5173}
+
+  sms:
+    # Twilio REST over plain HTTP. Configured only when all three are set; otherwise follow-up SMS return
+    # 503 and no alert SMS is sent. TWILIO_FROM is an E.164 number, e.g. +14385551234.
+    account-sid: ${TWILIO_ACCOUNT_SID:}
+    auth-token: ${TWILIO_AUTH_TOKEN:}
+    from: ${TWILIO_FROM:}
+    follow-up-limit-per-hour: 20   # per user
+
+  alerts:
+    # Owner alerts for each new inbound website lead. Comma-separated lists; each is optional.
+    phone: ${ALERT_PHONE:}   # E.164 numbers (SMS, needs the Twilio variables above)
+    email: ${ALERT_EMAIL:}   # needs SMTP
+    max-sms-per-day: 30
+
+  places:
+    # Google Places API (New) enrichment of leads; optional, the CRM shows "non configuré" while the key is empty.
+    api-key: ${GOOGLE_PLACES_API_KEY:}
+    daily-limit: ${PLACES_DAILY_LIMIT:100}   # calls per day (Montreal time)
+
+  weekly-report:
+    # Monday coaching email (America/Montreal), sent only when SMTP is configured
+    cron: ${WEEKLY_REPORT_CRON:0 30 7 * * MON}
+
   company:
     name: ${COMPANY_NAME:EcoNet Propreté}
+    # Contact line added to every follow-up text before the opt-out line (CASL), e.g. "514 555-0123 econet.ca"
+    contact: ${COMPANY_CONTACT:}
+
+  reviews:
+    # Google review link sent to clients after the first cleaning (clients page). Optional.
+    google-url: ${GOOGLE_REVIEW_URL:}
 
   geocoding:
     enabled: true

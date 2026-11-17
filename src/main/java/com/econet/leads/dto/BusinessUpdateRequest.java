@@ -9,47 +9,47 @@ import java.util.UUID;
 @Data
 public class BusinessUpdateRequest {
 
-    @Size(max = 255, message = "Business name must not exceed 255 characters")
+    @Size(max = 255, message = "Le nom de l'entreprise ne doit pas dépasser 255 caractères")
     private String businessName;
 
-    @Size(max = 100, message = "Business type must not exceed 100 characters")
+    @Size(max = 100, message = "Le type d'entreprise ne doit pas dépasser 100 caractères")
     private String businessType;
 
     private UUID categoryId;
 
-    @Size(max = 255, message = "Address street must not exceed 255 characters")
+    @Size(max = 255, message = "L'adresse ne doit pas dépasser 255 caractères")
     private String addressStreet;
 
-    @Size(max = 100, message = "City must not exceed 100 characters")
+    @Size(max = 100, message = "La ville ne doit pas dépasser 100 caractères")
     private String addressCity;
 
-    @Size(max = 50, message = "Province must not exceed 50 characters")
+    @Size(max = 50, message = "La province ne doit pas dépasser 50 caractères")
     private String addressProvince;
 
     @Pattern(regexp = "^[A-Za-z]\\d[A-Za-z]\\s?\\d[A-Za-z]\\d$",
-             message = "Postal code must be in format A1A 1A1 or a1a 1a1")
+             message = "Le code postal doit avoir le format A1A 1A1")
     private String postalCode;
 
-    @Size(max = 20, message = "Phone must not exceed 20 characters")
+    @Size(max = 20, message = "Le téléphone ne doit pas dépasser 20 caractères")
     private String phone;
 
-    @Email(message = "Email must be valid")
-    @Size(max = 255, message = "Email must not exceed 255 characters")
+    @Email(message = "Le courriel n'est pas valide")
+    @Size(max = 255, message = "Le courriel ne doit pas dépasser 255 caractères")
     private String email;
 
-    @Size(max = 500, message = "Website must not exceed 500 characters")
+    @Size(max = 500, message = "Le site web ne doit pas dépasser 500 caractères")
     private String website;
 
-    @DecimalMin(value = "-90.0", message = "Latitude must be between -90 and 90")
-    @DecimalMax(value = "90.0", message = "Latitude must be between -90 and 90")
+    @DecimalMin(value = "-90.0", message = "La latitude doit être entre -90 et 90")
+    @DecimalMax(value = "90.0", message = "La latitude doit être entre -90 et 90")
     private BigDecimal latitude;
 
-    @DecimalMin(value = "-180.0", message = "Longitude must be between -180 and 180")
-    @DecimalMax(value = "180.0", message = "Longitude must be between -180 and 180")
+    @DecimalMin(value = "-180.0", message = "La longitude doit être entre -180 et 180")
+    @DecimalMax(value = "180.0", message = "La longitude doit être entre -180 et 180")
     private BigDecimal longitude;
 
-    @DecimalMin(value = "0.0", message = "Estimated value must be positive")
-    @Digits(integer = 8, fraction = 2, message = "Estimated value must have at most 8 digits and 2 decimals")
+    @DecimalMin(value = "0.0", message = "La valeur estimée doit être positive")
+    @Digits(integer = 8, fraction = 2, message = "La valeur estimée doit avoir au plus 8 chiffres et 2 décimales")
     private BigDecimal estimatedValue;
 
     /** Assign the lead to this user (null = unchanged) */

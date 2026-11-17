@@ -46,7 +46,7 @@ public class ManualLeadService {
     public Business create(BusinessCreateRequest request, User creator) {
         LeadStatus status = request.getLeadStatus() == null ? LeadStatus.NEW : request.getLeadStatus();
         if (!ALLOWED_STATUSES.contains(status)) {
-            throw ApiException.badRequest("leadStatus must be one of " + ALLOWED_STATUSES + " when adding a lead");
+            throw ApiException.badRequest("leadStatus doit être l'un de " + ALLOWED_STATUSES + " à l'ajout d'un lead");
         }
 
         Business business = new Business();
@@ -54,7 +54,7 @@ public class ManualLeadService {
         business.setBusinessType(blankToNull(request.getBusinessType()) != null ? request.getBusinessType().trim() : DEFAULT_TYPE);
         if (request.getCategoryId() != null) {
             business.setCategory(categoryRepository.findById(request.getCategoryId())
-                    .orElseThrow(() -> ApiException.badRequest("Category not found with id: " + request.getCategoryId())));
+                    .orElseThrow(() -> ApiException.badRequest("Catégorie introuvable : " + request.getCategoryId())));
         }
         business.setAddressStreet(request.getAddressStreet());
         business.setAddressCity(request.getAddressCity());

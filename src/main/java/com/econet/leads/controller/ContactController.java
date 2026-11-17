@@ -177,7 +177,7 @@ public class ContactController {
 
         // Verify ownership before update - load with associations to avoid lazy loading issues
         Contact existing = contactService.findByIdWithAssociations(id)
-                .orElseThrow(() -> com.econet.leads.exception.ApiException.notFound("Contact not found with id: " + id));
+                .orElseThrow(() -> com.econet.leads.exception.ApiException.notFound("Contact introuvable : " + id));
 
         if (!existing.getUser().getId().equals(currentUser.getId()) &&
             currentUser.getRole() != User.UserRole.ADMIN) {

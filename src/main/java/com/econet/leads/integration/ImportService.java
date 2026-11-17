@@ -176,8 +176,8 @@ public class ImportService {
         try {
             importExecutor.execute(() -> task.run(jobId));
         } catch (TaskRejectedException e) {
-            jobTracker.fail(jobId, "Import queue is full, try again later");
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Import queue is full, try again later");
+            jobTracker.fail(jobId, "File d'imports pleine, réessayez plus tard");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "File d'imports pleine, réessayez plus tard");
         }
         log.info("Queued import job {} for {}", jobId, sourceName);
         return job;

@@ -59,7 +59,7 @@ public class QualificationService {
         if (STRING_KEYS.contains(key)) {
             String s = string(key, raw, "notes".equals(key) ? MAX_NOTES : MAX_STRING);
             if (s != null && "email".equals(key) && !s.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+")) {
-                throw ApiException.badRequest("qualification.email is not a valid email address");
+                throw ApiException.badRequest("Courriel invalide (qualification.email)");
             }
             return s;
         }
@@ -68,16 +68,16 @@ public class QualificationService {
                 return null;
             }
             if (!(raw instanceof Number) && !(raw instanceof String)) {
-                throw ApiException.badRequest("qualification." + key + " must be a number");
+                throw ApiException.badRequest("Nombre attendu pour qualification." + key);
             }
             long v;
             try {
                 v = raw instanceof Number n ? Math.round(n.doubleValue()) : Long.parseLong(((String) raw).trim());
             } catch (NumberFormatException e) {
-                throw ApiException.badRequest("qualification." + key + " must be a number");
+                throw ApiException.badRequest("Nombre attendu pour qualification." + key);
             }
             if (v < 0 || v > 100_000_000L) {
-                throw ApiException.badRequest("qualification." + key + " must be between 0 and 100000000");
+                throw ApiException.badRequest("qualification." + key + " doit être entre 0 et 100 000 000");
             }
             return v;
         }
@@ -88,7 +88,7 @@ public class QualificationService {
                 try {
                     return LocalDate.parse(s).toString();
                 } catch (DateTimeParseException e) {
-                    throw ApiException.badRequest("qualification.contractEndsAt must be a date YYYY-MM-DD");
+                    throw ApiException.badRequest("qualification.contractEndsAt doit être une date AAAA-MM-JJ");
                 }
             }
             case "frequencyWanted" -> {
@@ -96,7 +96,7 @@ public class QualificationService {
                 if (s == null) return null;
                 s = s.toLowerCase();
                 if (!FREQUENCIES.contains(s)) {
-                    throw ApiException.badRequest("qualification.frequencyWanted must be one of weekly, bi-weekly, monthly, one-time");
+                    throw ApiException.badRequest("qualification.frequencyWanted doit être l'un de weekly, bi-weekly, monthly, one-time");
                 }
                 return s;
             }
@@ -105,18 +105,18 @@ public class QualificationService {
                 if (s == null) return null;
                 s = s.toLowerCase();
                 if (!LANGUAGES.contains(s)) {
-                    throw ApiException.badRequest("qualification.language must be fr or en");
+                    throw ApiException.badRequest("qualification.language doit être fr ou en");
                 }
                 return s;
             }
             case "painPoints" -> {
                 if (!(raw instanceof List<?> list)) {
-                    throw ApiException.badRequest("qualification.painPoints must be an array of strings");
+                    throw ApiException.badRequest("qualification.painPoints doit être une liste de textes");
                 }
                 List<String> points = new ArrayList<>();
                 for (Object o : list) {
                     if (!(o instanceof String str)) {
-                        throw ApiException.badRequest("qualification.painPoints must be an array of strings");
+                        throw ApiException.badRequest("qualification.painPoints doit être une liste de textes");
                     }
                     String t = str.trim();
                     if (!t.isEmpty() && !points.contains(t)) {
@@ -124,24 +124,24 @@ public class QualificationService {
                     }
                 }
                 if (points.size() > MAX_PAIN_POINTS) {
-                    throw ApiException.badRequest("qualification.painPoints must have at most " + MAX_PAIN_POINTS + " entries");
+                    throw ApiException.badRequest("qualification.painPoints : au plus " + MAX_PAIN_POINTS + " éléments");
                 }
                 return points.isEmpty() ? null : points;
             }
-            default -> throw ApiException.badRequest("Unknown qualification field '" + key + "'");
+            default -> throw ApiException.badRequest("Champ de qualification inconnu « " + key + " »");
         }
     }
 
     private static String string(String key, Object raw, int max) {
         if (!(raw instanceof String s)) {
-            throw ApiException.badRequest("qualification." + key + " must be a string");
+            throw ApiException.badRequest("Texte attendu pour qualification." + key);
         }
         String t = s.trim();
         if (t.isEmpty()) {
             return null;
         }
         if (t.length() > max) {
-            throw ApiException.badRequest("qualification." + key + " must not exceed " + max + " characters");
+            throw ApiException.badRequest("qualification." + key + " ne doit pas dépasser " + max + " caractères");
         }
         return t;
     }

@@ -32,6 +32,9 @@ app:
   scheduler:
     enabled: false
 
+  discover:
+    overpass-urls: ""   # tests never reach the public mirrors; they set app.discover.overpass-url(s) themselves
+
 logging:
   level:
     com.econet.leads: INFO

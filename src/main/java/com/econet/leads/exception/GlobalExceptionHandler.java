@@ -9,8 +9,6 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.Nullable;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authentication.DisabledException;
-import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -73,28 +71,25 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<Object> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
-        return error(HttpStatus.BAD_REQUEST, "Invalid value for parameter '" + ex.getName() + "': " + ex.getValue());
+        return error(HttpStatus.BAD_REQUEST, "Valeur invalide pour le paramètre « " + ex.getName() + " »");
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Object> handleAccessDenied(AccessDeniedException ex) {
-        return error(HttpStatus.FORBIDDEN, ex.getMessage() != null ? ex.getMessage() : "Access denied");
+        return error(HttpStatus.FORBIDDEN, "Accès refusé");
     }
 
-    @ExceptionHandler({DisabledException.class, LockedException.class})
-    public ResponseEntity<Object> handleDisabled(AuthenticationException ex) {
-        return error(HttpStatus.UNAUTHORIZED, "Account is disabled");
-    }
-
+    // Deactivated accounts get the same answer as a wrong password: Spring checks the account state
+    // before the password, so a distinct message would reveal which usernames exist.
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<Object> handleAuthentication(AuthenticationException ex) {
-        return error(HttpStatus.UNAUTHORIZED, "Invalid username or password");
+        return error(HttpStatus.UNAUTHORIZED, "Nom d'utilisateur ou mot de passe invalide");
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleUnexpected(Exception ex) {
         log.error("Unhandled exception", ex);
-        return error(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error");
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "Erreur interne du serveur, réessayez dans un instant");
     }
 
     @Override
@@ -107,7 +102,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             fields.putIfAbsent(fe.getField(), fe.getDefaultMessage());
         }
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", "Validation failed");
+        body.put("error", "Validation échouée");
         body.put("fields", fields);
         return ResponseEntity.badRequest().body(body);
     }
@@ -121,17 +116,37 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                              WebRequest request) {
         String message = ex.getMessage();
         if (ex instanceof org.springframework.http.converter.HttpMessageNotReadableException) {
-            message = "Malformed request body";
+            message = "Requête mal formée";
             Throwable cause = ex.getCause();
             if (cause instanceof com.fasterxml.jackson.databind.exc.InvalidFormatException ife) {
-                message = "Invalid value '" + ife.getValue() + "'"
-                        + (ife.getPath().isEmpty() ? "" : " for field '" + ife.getPath().get(ife.getPath().size() - 1).getFieldName() + "'");
+                message = "Valeur invalide « " + ife.getValue() + " »"
+                        + (ife.getPath().isEmpty() ? "" : " pour le champ « " + ife.getPath().get(ife.getPath().size() - 1).getFieldName() + " »");
             }
         }
-        return ResponseEntity.status(statusCode).headers(headers).body(Map.of("error", message != null ? message : "Request error"));
+        if (!(ex instanceof org.springframework.http.converter.HttpMessageNotReadableException)) {
+            message = genericMessage(statusCode, message);
+        }
+        return ResponseEntity.status(statusCode).headers(headers).body(Map.of("error", message != null ? message : "Erreur dans la requête"));
     }
 
     private static ResponseEntity<Object> error(HttpStatusCode status, String message) {
-        return ResponseEntity.status(status).body(Map.of("error", message != null ? message : "Error"));
+        return ResponseEntity.status(status).body(Map.of("error", message != null ? message : "Erreur"));
+    }
+
+    /** French fallback for framework exceptions whose own message is English. */
+    private static String genericMessage(HttpStatusCode status, String original) {
+        return switch (status.value()) {
+            case 400 -> "Requête invalide";
+            case 401 -> "Non autorisé";
+            case 403 -> "Accès refusé";
+            case 404 -> "Ressource introuvable";
+            case 405 -> "Méthode non permise";
+            case 409 -> "Conflit avec l'état actuel des données";
+            case 413 -> "Fichier trop volumineux";
+            case 415 -> "Type de contenu non pris en charge";
+            case 429 -> "Trop de requêtes, réessayez dans un instant";
+            case 500 -> "Erreur interne du serveur, réessayez dans un instant";
+            default -> original;
+        };
     }
 }

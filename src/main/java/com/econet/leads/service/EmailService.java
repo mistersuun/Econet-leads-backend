@@ -71,6 +71,7 @@ public class EmailService {
     private final EmailRateLimiter rateLimiter;
     private final Clock clock;
     private final String companyName;
+    private final LinkPlaceholders linkPlaceholders;
 
     public EmailService(ObjectProvider<JavaMailSender> mailSender,
                         MailSettings settings,
@@ -80,7 +81,8 @@ public class EmailService {
                         PricingService pricingService,
                         EmailRateLimiter rateLimiter,
                         Clock clock,
-                        @Value("${app.company.name:EcoNet Propreté}") String companyName) {
+                        @Value("${app.company.name:EcoNet Propreté}") String companyName,
+                        LinkPlaceholders linkPlaceholders) {
         this.mailSender = mailSender;
         this.settings = settings;
         this.templateRepository = templateRepository;
@@ -90,6 +92,7 @@ public class EmailService {
         this.rateLimiter = rateLimiter;
         this.clock = clock;
         this.companyName = companyName;
+        this.linkPlaceholders = linkPlaceholders;
     }
 
     // ------------------------------------------------------------------ status / templates
@@ -110,13 +113,13 @@ public class EmailService {
     @Transactional
     public EmailDTOs.Template updateTemplate(UUID id, EmailTemplateUpdateRequest request) {
         EmailTemplate template = templateRepository.findById(id)
-                .orElseThrow(() -> ApiException.notFound("Email template not found: " + id));
+                .orElseThrow(() -> ApiException.notFound("Modèle de courriel introuvable : " + id));
         if (request.getSubject() != null) {
-            if (request.getSubject().isBlank()) throw ApiException.badRequest("subject must not be blank");
+            if (request.getSubject().isBlank()) throw ApiException.badRequest("L'objet ne doit pas être vide");
             template.setSubject(request.getSubject().trim());
         }
         if (request.getBody() != null) {
-            if (request.getBody().isBlank()) throw ApiException.badRequest("body must not be blank");
+            if (request.getBody().isBlank()) throw ApiException.badRequest("Le message ne doit pas être vide");
             template.setBody(request.getBody());
         }
         if (request.getActive() != null) {
@@ -138,7 +141,7 @@ public class EmailService {
     @Transactional(readOnly = true)
     public EmailPreviewDTO preview(UUID leadId, EmailSendRequest request, User caller) {
         Business lead = businessRepository.findById(leadId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + leadId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + leadId));
         Rendered r = render(lead, request, caller);
         return new EmailPreviewDTO(r.subject(), r.body());
     }
@@ -147,13 +150,13 @@ public class EmailService {
     public EmailSendResponse send(UUID leadId, EmailSendRequest request, User caller) {
         JavaMailSender sender = settings.isConfigured() ? mailSender.getIfAvailable() : null;
         if (sender == null) {
-            throw ApiException.serviceUnavailable("Email is not configured (set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)");
+            throw ApiException.serviceUnavailable("Courriel non configuré (définir SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)");
         }
         Business lead = businessRepository.findByIdForUpdate(leadId)
-                .orElseThrow(() -> ApiException.notFound("Lead not found: " + leadId));
+                .orElseThrow(() -> ApiException.notFound("Lead introuvable : " + leadId));
         Rendered r = render(lead, request, caller);
         if (r.to() == null) {
-            throw ApiException.badRequest("No recipient: pass 'to' or set an email on the lead / its qualification");
+            throw ApiException.badRequest("Aucun destinataire : indiquez un courriel pour ce lead");
         }
         rateLimiter.acquire(caller.getId());
 
@@ -181,8 +184,8 @@ public class EmailService {
             }
             sender.send(message);
         } catch (MessagingException | UnsupportedEncodingException | MailException e) {
-            log.error("Email to lead {} failed: {}", lead.getId(), e.getMessage());
-            throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "Email could not be sent: " + e.getMessage());
+            log.error("Email to lead {} failed ({})", lead.getId(), e.getClass().getSimpleName());
+            throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "Le courriel n'a pas pu être envoyé");
         }
 
         Contact contact = new Contact();
@@ -208,20 +211,20 @@ public class EmailService {
     Rendered render(Business lead, EmailSendRequest request, User caller) {
         String key = request.getTemplateKey() == null ? "" : request.getTemplateKey().trim().toLowerCase(Locale.ROOT);
         if (!TEMPLATE_KEYS.contains(key)) {
-            throw ApiException.badRequest("templateKey must be one of " + TEMPLATE_KEYS);
+            throw ApiException.badRequest("templateKey doit être l'un de " + TEMPLATE_KEYS);
         }
         Map<String, Object> qualification = lead.getQualification();
         String language = request.getLanguage() != null && !request.getLanguage().isBlank()
                 ? request.getLanguage().trim().toLowerCase(Locale.ROOT)
                 : "en".equals(QualificationService.text(qualification, "language")) ? "en" : "fr";
         if (!QualificationService.LANGUAGES.contains(language)) {
-            throw ApiException.badRequest("language must be fr or en");
+            throw ApiException.badRequest("La langue doit être fr ou en");
         }
         if ("visit_confirmation".equals(key) && request.getVisitAt() == null) {
-            throw ApiException.badRequest("visitAt is required for the visit_confirmation template");
+            throw ApiException.badRequest("visitAt est requis pour le modèle visit_confirmation");
         }
         EmailTemplate template = templateRepository.findByKeyAndLanguageAndActiveTrue(key, language)
-                .orElseThrow(() -> ApiException.notFound("No active email template " + key + " (" + language + ")"));
+                .orElseThrow(() -> ApiException.notFound("Aucun modèle de courriel actif : " + key + " (" + language + ")"));
 
         Locale locale = "en".equals(language) ? Locale.CANADA : Locale.CANADA_FRENCH;
         Map<String, String> values = new LinkedHashMap<>();
@@ -248,12 +251,14 @@ public class EmailService {
             values.put("estimateTotal", "");
         }
 
+        values.putAll(linkPlaceholders.forLead(lead.getId()));
+
         String to = request.getTo() != null && !request.getTo().isBlank() ? request.getTo().trim()
                 : firstNonBlank(QualificationService.text(qualification, "email"), lead.getEmail());
         if (to != null && !to.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+")) {
-            throw ApiException.badRequest("'" + to + "' is not a valid email address");
+            throw ApiException.badRequest("Adresse courriel invalide : " + to);
         }
-        return new Rendered(tidy(substitute(template.getSubject(), values)), tidy(substitute(template.getBody(), values)), to, language);
+        return new Rendered(tidy(substitute(template.getSubject(), values)), tidy(substitute(dropEmptyLinkLines(template.getBody(), values), values)), to, language);
     }
 
     static String substitute(String text, Map<String, String> values) {
@@ -263,6 +268,27 @@ public class EmailService {
             m.appendReplacement(sb, Matcher.quoteReplacement(values.getOrDefault(m.group(1), "")));
         }
         m.appendTail(sb);
+        return sb.toString();
+    }
+
+    /** A line that carries a {{quoteLink}} / {{bookingLink}} placeholder with no value ("Réserver : {{bookingLink}}") is removed whole. */
+    static String dropEmptyLinkLines(String text, Map<String, String> values) {
+        StringBuilder sb = new StringBuilder();
+        for (String line : text.split("\\n", -1)) {
+            boolean empty = false;
+            Matcher m = PLACEHOLDER.matcher(line);
+            while (m.find()) {
+                String key = m.group(1);
+                if ((LinkPlaceholders.QUOTE_LINK.equals(key) || LinkPlaceholders.BOOKING_LINK.equals(key))
+                        && values.getOrDefault(key, "").isEmpty()) {
+                    empty = true;
+                }
+            }
+            if (!empty) {
+                if (sb.length() > 0) sb.append('\n');
+                sb.append(line);
+            }
+        }
         return sb.toString();
     }
 

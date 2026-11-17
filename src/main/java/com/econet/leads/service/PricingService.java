@@ -95,7 +95,7 @@ public class PricingService {
         if (input.addOnIds() != null) {
             for (String id : input.addOnIds()) {
                 AddOn addOn = ADD_ONS.stream().filter(a -> a.id().equals(id)).findFirst()
-                        .orElseThrow(() -> ApiException.badRequest("Unknown add-on '" + id + "'"));
+                        .orElseThrow(() -> ApiException.badRequest("Option inconnue « " + id + " »"));
                 if (addOnLines.stream().noneMatch(l -> l.id().equals(id))) {
                     addOnLines.add(new EstimateLine(addOn.id(), addOn.labelFr(), addOn.labelEn(), addOn.price()));
                     addOnsTotal += addOn.price();

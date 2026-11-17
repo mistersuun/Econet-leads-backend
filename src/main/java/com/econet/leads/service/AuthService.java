@@ -41,11 +41,10 @@ public class AuthService {
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         String accessToken = tokenProvider.generateToken(authentication);
-        String refreshToken = tokenProvider.generateRefreshToken(loginRequest.getUsername());
-
         // Update last login
         User user = userRepository.findByUsername(loginRequest.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+        String refreshToken = tokenProvider.generateRefreshToken(user.getUsername(), user.getPasswordHash());
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
 
@@ -56,12 +55,12 @@ public class AuthService {
     public AuthResponse register(RegisterRequest registerRequest) {
         // Check if username already exists
         if (userRepository.existsByUsername(registerRequest.getUsername())) {
-            throw ApiException.conflict("Username is already taken");
+            throw ApiException.conflict("Ce nom d'utilisateur est déjà utilisé");
         }
 
         // Check if email already exists
         if (userRepository.existsByEmail(registerRequest.getEmail())) {
-            throw ApiException.conflict("Email is already in use");
+            throw ApiException.conflict("Ce courriel est déjà utilisé");
         }
 
         // Create new user
@@ -76,7 +75,7 @@ public class AuthService {
 
         // Generate tokens
         String accessToken = tokenProvider.generateToken(savedUser.getUsername());
-        String refreshToken = tokenProvider.generateRefreshToken(savedUser.getUsername());
+        String refreshToken = tokenProvider.generateRefreshToken(savedUser.getUsername(), savedUser.getPasswordHash());
 
         return new AuthResponse(accessToken, refreshToken, savedUser.getId(), savedUser.getUsername(), savedUser.getEmail(), savedUser.getRole().name());
     }
@@ -84,16 +83,20 @@ public class AuthService {
     @Transactional
     public AuthResponse refreshToken(String refreshToken) {
         if (!tokenProvider.validateRefreshToken(refreshToken)) {
-            throw new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Invalid refresh token");
+            throw new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Session expirée, reconnectez-vous");
         }
 
         String username = tokenProvider.getUsernameFromRefreshToken(refreshToken);
         User user = userRepository.findByUsername(username)
                 .filter(u -> Boolean.TRUE.equals(u.getActive()))
-                .orElseThrow(() -> new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Invalid refresh token"));
+                .orElseThrow(() -> new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Session expirée, reconnectez-vous"));
+        if (!tokenProvider.refreshTokenMatchesPassword(refreshToken, user.getPasswordHash())) {
+            // the password changed since this session was opened
+            throw new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Session expirée, reconnectez-vous");
+        }
 
         String newAccessToken = tokenProvider.generateToken(username);
-        String newRefreshToken = tokenProvider.generateRefreshToken(username);
+        String newRefreshToken = tokenProvider.generateRefreshToken(username, user.getPasswordHash());
 
         return new AuthResponse(newAccessToken, newRefreshToken, user.getId(), user.getUsername(), user.getEmail(), user.getRole().name());
     }

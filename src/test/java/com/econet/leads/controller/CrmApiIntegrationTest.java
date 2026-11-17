@@ -215,7 +215,7 @@ class CrmApiIntegrationTest {
     void anonymousGets401WithJsonError() throws Exception {
         mvc.perform(get("/api/dashboard/summary"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("Unauthorized"));
+                .andExpect(jsonPath("$.error").value("Non autorisé"));
         mvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"mallory\",\"email\":\"m@example.com\",\"password\":\"secret123\"}"))

@@ -57,6 +57,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class WebsiteRequestsIntegrationTest {
 
     static final String WEBSITE_URL = "jdbc:h2:mem:website;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
+    static final String ESTIMATE_TABLE = """
+            CREATE TABLE IF NOT EXISTS estimate_requests (
+              id VARCHAR(40) PRIMARY KEY, email VARCHAR(255) NOT NULL, first_name VARCHAR(100), phone VARCHAR(40),
+              service VARCHAR(40), area VARCHAR(40), property_type VARCHAR(40), add_ons VARCHAR(500), frequency VARCHAR(40),
+              total DECIMAL(10,2), language VARCHAR(5), consent BOOLEAN NOT NULL, created_at TIMESTAMP NOT NULL)""";
     static final RequestPostProcessor ADMIN = user("admin").roles("ADMIN");
     static final RequestPostProcessor ALICE = user("alice").roles("USER");
     static final RequestPostProcessor VIEWER = user("viewer").roles("VIEWER");
@@ -98,6 +103,8 @@ class WebsiteRequestsIntegrationTest {
                       id VARCHAR(40) PRIMARY KEY, first_name VARCHAR(100), last_name VARCHAR(100), phone VARCHAR(40), email VARCHAR(255),
                       service_type VARCHAR(100), property_size VARCHAR(40), preferred_date VARCHAR(40), message TEXT,
                       urgent_request BOOLEAN, created_at TIMESTAMP NOT NULL)""");
+            s.execute(ESTIMATE_TABLE);
+            s.execute("DELETE FROM estimate_requests");
             s.execute("DELETE FROM booking_requests");
             s.execute("DELETE FROM contact_submissions");
         }
@@ -192,6 +199,90 @@ class WebsiteRequestsIntegrationTest {
         assertThat(marieNotification).isNotNull();
         assertThat(marieNotification.get("body").asText()).isEqualTo("Nouvelle demande du site · Résidentiel · 261 $");
         assertThat(marieNotification.get("leadId").asText()).isEqualTo(marie.getId().toString());
+    }
+
+    @Test
+    void importsEstimateRequestsAsInterestedLeadsWithFrenchDetails() throws Exception {
+        insertEstimate("e1", "marie@example.test", "Marie", "514-555-0301", "residential", "800_1500", "house",
+                "[\"windows\",\"oven\"]", "bi-weekly", "261.00", "fr", true, minutesAgo(15));
+        insertEstimate("e2", "bob@example.test", null, null, "post_construction", "over_2500", null,
+                null, "one-time", null, "en", true, minutesAgo(10));
+        insertEstimate("e3", "no-consent@example.test", "Nope", null, "residential", "under_800", "apartment",
+                null, "weekly", "100.00", "fr", false, minutesAgo(5));
+        long lastEvent = sse.lastEventId();
+
+        JsonNode job = runImport();
+        assertThat(job.get("recordsAdded").asInt()).isEqualTo(2);
+
+        Business marie = byExternalId("estimate:e1");
+        assertThat(marie.getBusinessName()).isEqualTo("Marie");
+        assertThat(marie.getBusinessType()).isEqualTo("Demande web – estimation");
+        assertThat(marie.getDataSource()).isEqualTo("Site web");
+        assertThat(marie.getLeadStatus()).isEqualTo(LeadStatus.INTERESTED);
+        assertThat(marie.getEmail()).isEqualTo("marie@example.test");
+        assertThat(marie.getPhone()).isEqualTo("(514) 555-0301");
+        assertThat(marie.getEstimatedValue()).isEqualByComparingTo("261");
+        assertThat(marie.getNextFollowUpAt()).isBetween(LocalDateTime.now().minusMinutes(2), LocalDateTime.now().plusMinutes(1));
+        assertThat(marie.getSourceDetails()).containsEntry("Service", "Résidentiel")
+                .containsEntry("Superficie", "800 à 1500 pi²").containsEntry("Type", "Maison unifamiliale")
+                .containsEntry("Options", "Vitres intérieures, Four").containsEntry("Fréquence", "Aux 2 semaines")
+                .containsEntry("Estimation", "261 $").containsEntry("Langue", "fr");
+        assertThat(marie.getQualification()).containsEntry("email", "marie@example.test")
+                .containsEntry("language", "fr").containsEntry("frequencyWanted", "bi-weekly");
+
+        // no first name: the email is the name; a custom quote has no estimated value
+        Business bob = byExternalId("estimate:e2");
+        assertThat(bob.getBusinessName()).isEqualTo("bob@example.test");
+        assertThat(bob.getEstimatedValue()).isNull();
+        assertThat(bob.getSourceDetails()).containsEntry("Estimation", "Devis personnalisé").containsEntry("Service", "Après-construction");
+
+        // a request without consent is never imported
+        assertThat(businessRepository.findAll().stream().map(Business::getExternalId)).doesNotContain("estimate:e3");
+
+        assertThat(contactRepository.findAll()).hasSize(2).allMatch(c -> c.getContactType() == Contact.ContactType.NOTE)
+                .extracting(Contact::getNotes).containsOnly("Estimation demandée sur le site");
+
+        List<SseEventService.StoredEvent> inbound = sse.eventsAfter(lastEvent).stream().filter(e -> e.type().equals("lead.inbound")).toList();
+        assertThat(inbound).hasSize(2);
+        JsonNode event = json.readTree(inbound.stream().filter(e -> e.json().contains("\"Marie\"")).findFirst().orElseThrow().json());
+        assertThat(event.get("kind").asText()).isEqualTo("estimate");
+        assertThat(event.get("leadId").asText()).isEqualTo(marie.getId().toString());
+        assertThat(event.get("businessType").asText()).isEqualTo("Demande web – estimation");
+
+        JsonNode list = json.readTree(mvc.perform(get("/api/notifications").with(ALICE)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
+        boolean found = false;
+        for (JsonNode n : list) {
+            if (n.get("title").asText().equals("Marie")) {
+                found = true;
+                assertThat(n.get("kind").asText()).isEqualTo("inbound_request");
+                assertThat(n.get("body").asText()).isEqualTo("Nouvelle demande du site · Estimation · 261 $");
+            }
+        }
+        assertThat(found).isTrue();
+
+        // overlap window: seen again, not duplicated
+        JsonNode second = runImport();
+        assertThat(second.get("recordsAdded").asInt()).isZero();
+        assertThat(businessRepository.findAll()).hasSize(2);
+    }
+
+    @Test
+    void aWebsiteWithoutTheEstimateTableStillImportsTheOtherRequests() throws Exception {
+        insertContact("c1", "Poll Contact", "514-555-0210", null, "Bureau", null, null, "Salut", false, minutesAgo(2));
+        try (Connection c = DriverManager.getConnection(WEBSITE_URL, "sa", ""); Statement s = c.createStatement()) {
+            s.execute("DROP TABLE estimate_requests");
+        }
+        try {
+            JsonNode job = runImport();
+            assertThat(job.get("status").asText()).isEqualTo("COMPLETED");
+            assertThat(job.get("recordsAdded").asInt()).isEqualTo(1);
+            assertThat(businessRepository.findAll().stream().map(Business::getExternalId)).containsExactly("contact:c1");
+        } finally {
+            try (Connection c = DriverManager.getConnection(WEBSITE_URL, "sa", ""); Statement s = c.createStatement()) {
+                s.execute(ESTIMATE_TABLE);
+            }
+        }
     }
 
     @Test
@@ -311,6 +402,18 @@ class WebsiteRequestsIntegrationTest {
             Object[] v = {id, first, last, phone, email, address, city, postal, propertyType, size, service,
                     date == null ? null : java.sql.Date.valueOf(date), time, frequency, addons,
                     total == null ? null : new java.math.BigDecimal(total), instructions, language, java.sql.Timestamp.valueOf(createdAt)};
+            for (int i = 0; i < v.length; i++) ps.setObject(i + 1, v[i]);
+            ps.executeUpdate();
+        }
+    }
+
+    private void insertEstimate(String id, String email, String first, String phone, String service, String area,
+                                String propertyType, String addOns, String frequency, String total, String language,
+                                boolean consent, LocalDateTime createdAt) throws Exception {
+        try (Connection c = DriverManager.getConnection(WEBSITE_URL, "sa", "");
+             var ps = c.prepareStatement("INSERT INTO estimate_requests VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+            Object[] v = {id, email, first, phone, service, area, propertyType, addOns, frequency,
+                    total == null ? null : new java.math.BigDecimal(total), language, consent, java.sql.Timestamp.valueOf(createdAt)};
             for (int i = 0; i < v.length; i++) ps.setObject(i + 1, v[i]);
             ps.executeUpdate();
         }

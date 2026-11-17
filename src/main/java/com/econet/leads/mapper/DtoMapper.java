@@ -52,6 +52,7 @@ public final class DtoMapper {
                 ? null : new java.util.LinkedHashMap<>(business.getSourceDetails()));
         dto.setQualification(business.getQualification() == null || business.getQualification().isEmpty()
                 ? null : new java.util.LinkedHashMap<>(business.getQualification()));
+        dto.setPlaces(com.econet.leads.service.PlacesService.exposed(business.getPlaces()));
         return dto;
     }
 
@@ -71,6 +72,8 @@ public final class DtoMapper {
         dto.setUsername(contact.getUser().getUsername());
         dto.setOutcome(contact.getOutcome());
         dto.setDurationSeconds(contact.getDurationSeconds());
+        dto.setObjections(contact.getObjections() == null || contact.getObjections().isEmpty()
+                ? null : new java.util.ArrayList<>(contact.getObjections()));
         dto.setCreatedAt(contact.getCreatedAt());
         return dto;
     }

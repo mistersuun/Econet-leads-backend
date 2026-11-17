@@ -1,0 +1,21 @@
+# Pings the Render free-plan server so it does not fall asleep during working hours.
+# 12:00-23:59 UTC, Monday to Friday, every 10 minutes (covers 08:00-19:59 in Montréal, with daylight saving),
+# plus Monday 11:00-11:59 UTC.
+name: keep-awake
+
+on:
+  schedule:
+    - cron: "*/10 12-23 * * 1-5"
+    # Monday from 11:00 UTC too, so the 07:30 Montréal coaching email (11:30 UTC in summer) finds the server awake
+    - cron: "*/10 11 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wake the API
+        run: curl -fsS --retry 3 --max-time 90 https://econet-leads-api.onrender.com/actuator/health

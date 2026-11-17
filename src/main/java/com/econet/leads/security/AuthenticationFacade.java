@@ -18,12 +18,12 @@ public class AuthenticationFacade {
     public User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Not authenticated");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Non authentifié");
         }
 
         String username = authentication.getName();
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "User not found: " + username));
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Utilisateur introuvable : " + username));
     }
 
     public String getCurrentUsername() {

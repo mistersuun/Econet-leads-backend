@@ -15,4 +15,16 @@ public record NotificationDTO(String id, String kind, String title, String body,
     public static final String TENDER_CLOSING = "tender_closing";
     /** A request from the website that nobody has called yet. */
     public static final String INBOUND_REQUEST = "inbound_request";
+    /** A saved search that found new leads in its last run. */
+    public static final String SAVED_SEARCH = "saved_search";
+
+    /** A prospect accepted a quote through its public link (P5). */
+    public static final String QUOTE_ACCEPTED = "quote_accepted";
+    /** A prospect booked a visit through a booking link (P5). */
+    public static final String VISIT_BOOKED = "visit_booked";
+
+    // Clients after the sale (the lead id is the client's business)
+    public static final String CONTRACT_RENEWAL = "contract_renewal";
+    public static final String REVIEW_REQUEST_DUE = "review_request_due";
+    public static final String VISIT_DUE = "visit_due";
 }

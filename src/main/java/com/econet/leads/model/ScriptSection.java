@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * One section of a call script, stored in call_scripts.sections (JSONB).
- * key is one of opening | questions | objections | closing.
+ * key is one of opening | questions | objections | closing | voicemail.
  */
 @Data
 @NoArgsConstructor
